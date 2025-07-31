@@ -21,19 +21,22 @@ export async function postCommitHook(): Promise<void> {
       return;
     }
     
-    // Create TSV format
-    // First line: metadata (version)
-    const lines: string[] = ['version\t1.0'];
+    // Create aligned key-value format with header
+    const lines: string[] = ['claude-was-here', 'version: 1.0'];
     
-    // Each subsequent line: filename and ranges
+    // Calculate the maximum filename length for alignment
+    const filePaths = Object.keys(metadata.files);
+    const maxLength = Math.max(...filePaths.map(path => path.length));
+    
+    // Each subsequent line: filename padded with colon and ranges
     for (const [filePath, fileData] of Object.entries(metadata.files)) {
       const lineNumbers = fileData.claude_lines;
       const ranges = convertLinesToRanges(lineNumbers);
       
-      // Format: filename\trange1,range2,range3...
-      // Where each range is start-end
+      // Format: filename: (padded to align) range1,range2,range3...
       const rangeStr = ranges.map(([start, end]) => `${start}-${end}`).join(',');
-      lines.push(`${filePath}\t${rangeStr}`);
+      const paddedPath = `${filePath}:`.padEnd(maxLength + 2); // +2 for ": "
+      lines.push(`${paddedPath} ${rangeStr}`);
     }
     
     const noteContent = lines.join('\n');

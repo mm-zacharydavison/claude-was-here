@@ -122,24 +122,36 @@ async function getCommitNote(commitHash: string): Promise<GitNoteData | null> {
   try {
     const noteContent = await execGitCommand(['notes', 'show', commitHash]);
     
-    // Parse TSV format
+    // Parse aligned key-value format
     const lines = noteContent.trim().split('\n');
-    if (lines.length === 0) return null;
+    if (lines.length < 2) return null;
     
-    // First line is metadata
-    const [metaKey, metaValue] = lines[0].split('\t');
-    if (metaKey !== 'version') return null;
+    // First line should be "claude-was-here"
+    if (lines[0] !== 'claude-was-here') return null;
+    
+    // Second line should be "version: X.X"
+    const versionMatch = lines[1].match(/^version:\s*(.+)$/);
+    if (!versionMatch) return null;
     
     const noteData: GitNoteData = {
       claude_was_here: {
-        version: metaValue || "1.0",
+        version: versionMatch[1],
         files: {}
       }
     };
     
-    // Parse file entries
-    for (let i = 1; i < lines.length; i++) {
-      const [filePath, rangesStr] = lines[i].split('\t');
+    // Parse file entries (from line 2 onwards)
+    for (let i = 2; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      // Find the colon and split there
+      const colonIndex = line.indexOf(':');
+      if (colonIndex === -1) continue;
+      
+      const filePath = line.substring(0, colonIndex);
+      const rangesStr = line.substring(colonIndex + 1).trim();
+      
       if (!filePath || !rangesStr) continue;
       
       // Parse ranges (e.g., "1-10,15-20,25-25")

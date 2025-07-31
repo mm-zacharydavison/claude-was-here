@@ -1,13 +1,18 @@
 import type { GitNoteData } from '../../src/types.ts';
 
 export function gitNoteDataToTsv(noteData: GitNoteData): string {
-  const lines: string[] = [`version\t${noteData.claude_was_here.version}`];
+  const lines: string[] = ['claude-was-here', `version: ${noteData.claude_was_here.version}`];
+  
+  // Calculate the maximum filename length for alignment
+  const filePaths = Object.keys(noteData.claude_was_here.files);
+  const maxLength = Math.max(...filePaths.map(path => path.length));
   
   for (const [filePath, fileData] of Object.entries(noteData.claude_was_here.files)) {
     const rangeStr = fileData.ranges
       .map(([start, end]) => `${start}-${end}`)
       .join(',');
-    lines.push(`${filePath}\t${rangeStr}`);
+    const paddedPath = `${filePath}:`.padEnd(maxLength + 2); // +2 for ": "
+    lines.push(`${paddedPath} ${rangeStr}`);
   }
   
   return lines.join('\n');
@@ -15,20 +20,34 @@ export function gitNoteDataToTsv(noteData: GitNoteData): string {
 
 export function parseTsvToGitNoteData(tsv: string): GitNoteData {
   const lines = tsv.trim().split('\n');
-  if (lines.length === 0) throw new Error('Empty TSV');
+  if (lines.length < 2) throw new Error('Invalid format');
   
-  const [metaKey, metaValue] = lines[0].split('\t');
-  if (metaKey !== 'version') throw new Error('Invalid TSV format');
+  // First line should be "claude-was-here"
+  if (lines[0] !== 'claude-was-here') throw new Error('Invalid format');
+  
+  // Second line should be "version: X.X"
+  const versionMatch = lines[1].match(/^version:\s*(.+)$/);
+  if (!versionMatch) throw new Error('Invalid format');
   
   const noteData: GitNoteData = {
     claude_was_here: {
-      version: metaValue || "1.0",
+      version: versionMatch[1],
       files: {}
     }
   };
   
-  for (let i = 1; i < lines.length; i++) {
-    const [filePath, rangesStr] = lines[i].split('\t');
+  // Parse file entries (from line 2 onwards)
+  for (let i = 2; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    // Find the colon and split there
+    const colonIndex = line.indexOf(':');
+    if (colonIndex === -1) continue;
+    
+    const filePath = line.substring(0, colonIndex);
+    const rangesStr = line.substring(colonIndex + 1).trim();
+    
     if (!filePath || !rangesStr) continue;
     
     const ranges = rangesStr.split(',').map(range => {
