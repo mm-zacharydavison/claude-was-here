@@ -6,6 +6,9 @@ def add(a, b):
 def multiply(a, b):
     return a * b
 
+def add_two(a):
+    return a + 2
+
 def main():
     print("Calculator Demo")
     print(f"5 + 3 = {add(5, 3)}")
