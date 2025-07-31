@@ -28,47 +28,36 @@ export async function showStats(options: StatsOptions): Promise<void> {
     
     console.log(`\nAnalyzing ${commits.length} commits...`);
     
-    // Collect stats for all files
-    const fileStatsMap = new Map<string, FileStats>();
+    // Get the earliest commit in our range to use as base
+    const oldestCommit = commits[commits.length - 1];
+    const baseCommit = await getParentCommit(oldestCommit);
+    
+    // Collect all files that were touched by Claude in the time period
+    const claudeTouchedFiles = new Set<string>();
     
     for (const commit of commits) {
-      // Check if this commit has Claude metadata
       const noteData = await getCommitNote(commit);
       if (noteData && noteData.claude_was_here) {
-        // Process files in this commit
-        for (const [filePath, fileData] of Object.entries(noteData.claude_was_here.files)) {
-          if (!fileStatsMap.has(filePath)) {
-            fileStatsMap.set(filePath, {
-              totalLines: 0,
-              claudeLines: 0,
-              percentage: 0
-            });
-          }
-          
-          const stats = fileStatsMap.get(filePath)!;
-          
-          // Count Claude lines from ranges
-          for (const range of fileData.ranges) {
-            const [start, end] = range;
-            stats.claudeLines += (end - start + 1);
-          }
+        for (const filePath of Object.keys(noteData.claude_was_here.files)) {
+          claudeTouchedFiles.add(filePath);
         }
       }
     }
     
-    // Get current line counts for all tracked files
-    for (const [filePath, stats] of fileStatsMap.entries()) {
+    // Collect stats by analyzing final state vs base state for Claude-touched files
+    const fileStatsMap = new Map<string, FileStats>();
+    
+    for (const filePath of claudeTouchedFiles) {
       try {
-        const lineCount = await getFileLineCount(filePath);
-        stats.totalLines = lineCount;
-        stats.percentage = stats.totalLines > 0 
-          ? Math.round((stats.claudeLines / stats.totalLines) * 100) 
-          : 0;
+        // Analyze this file's changes using the same logic as GitHub Actions
+        const claudeData = await collectClaudeDataForFile(filePath, commits);
+        const finalStats = await analyzeFileClaudeContribution(filePath, claudeData, baseCommit, 'HEAD');
+        
+        if (finalStats) {
+          fileStatsMap.set(filePath, finalStats);
+        }
       } catch (error) {
-        // File might have been deleted, but we still have Claude lines tracked
-        // For deleted files, show the Claude lines as both total and Claude lines
-        stats.totalLines = stats.claudeLines;
-        stats.percentage = stats.claudeLines > 0 ? 100 : 0;
+        console.error(`Warning: Could not analyze ${filePath}: ${error}`);
       }
     }
     
@@ -173,4 +162,130 @@ async function getCommitNote(commitHash: string): Promise<GitNoteData | null> {
 async function getFileLineCount(filePath: string): Promise<number> {
   const result = await execGitCommand(['show', `HEAD:${filePath}`]);
   return result.split('\n').length;
+}
+
+async function getParentCommit(commitHash: string): Promise<string> {
+  try {
+    return await execGitCommand(['rev-parse', `${commitHash}^`]);
+  } catch {
+    // If no parent, return the commit itself (probably first commit)
+    return commitHash;
+  }
+}
+
+async function collectClaudeDataForFile(filePath: string, commits: string[]): Promise<string> {
+  let claudeData = '';
+  
+  for (const commit of commits) {
+    const noteData = await getCommitNote(commit);
+    if (noteData && noteData.claude_was_here && noteData.claude_was_here.files[filePath]) {
+      const fileData = noteData.claude_was_here.files[filePath];
+      
+      // Convert ranges back to range string format
+      const ranges = fileData.ranges.map(([start, end]) => 
+        start === end ? start.toString() : `${start}-${end}`
+      ).join(',');
+      
+      claudeData += `${commit}|${filePath}|${ranges}\n`;
+    }
+  }
+  
+  return claudeData;
+}
+
+async function analyzeFileClaudeContribution(
+  filePath: string, 
+  claudeData: string, 
+  baseCommit: string, 
+  headCommit: string
+): Promise<FileStats | null> {
+  if (!claudeData.trim()) {
+    return null;
+  }
+  
+  try {
+    // Parse Claude's original contributions (same as GitHub Actions script)
+    const claudeFiles = new Map<string, Set<number>>();
+    
+    for (const line of claudeData.split('\n')) {
+      if (!line.trim()) continue;
+      
+      const parts = line.split('|');
+      if (parts.length === 3) {
+        const [commitHash, filepath, ranges] = parts;
+        
+        if (filepath === filePath) {
+          if (!claudeFiles.has(filepath)) {
+            claudeFiles.set(filepath, new Set());
+          }
+          
+          // Parse ranges like "10-20,25-30"
+          for (const rangeStr of ranges.split(',')) {
+            if (rangeStr.includes('-')) {
+              const [start, end] = rangeStr.split('-').map(n => parseInt(n));
+              for (let i = start; i <= end; i++) {
+                claudeFiles.get(filepath)!.add(i);
+              }
+            } else {
+              claudeFiles.get(filepath)!.add(parseInt(rangeStr));
+            }
+          }
+        }
+      }
+    }
+    
+    // Get final diff lines for this file
+    const finalLines = await getFinalDiffLinesForFile(filePath, baseCommit, headCommit);
+    
+    // Map Claude contributions to final lines
+    let claudeContributedLines = 0;
+    if (claudeFiles.has(filePath) && finalLines.size > 0) {
+      // Simple mapping: if Claude touched the file and it has final changes,
+      // assume Claude contributed to those changes
+      claudeContributedLines = finalLines.size;
+    }
+    
+    // Get current file line count
+    const totalLines = await getFileLineCount(filePath);
+    
+    return {
+      totalLines,
+      claudeLines: claudeContributedLines,
+      percentage: totalLines > 0 ? Math.round((claudeContributedLines / totalLines) * 100) : 0
+    };
+    
+  } catch (error) {
+    console.error(`Error analyzing ${filePath}:`, error);
+    return null;
+  }
+}
+
+async function getFinalDiffLinesForFile(filePath: string, baseCommit: string, headCommit: string): Promise<Set<number>> {
+  try {
+    const result = await execGitCommand([
+      'diff', '--unified=0', `${baseCommit}..${headCommit}`, '--', filePath
+    ]);
+    
+    const finalLines = new Set<number>();
+    
+    for (const line of result.split('\n')) {
+      if (line.startsWith('@@')) {
+        // Parse hunk header like @@ -1,4 +10,8 @@
+        const match = line.match(/\+(\d+)(?:,(\d+))?/);
+        if (match) {
+          const startLine = parseInt(match[1]);
+          const count = match[2] ? parseInt(match[2]) : 1;
+          
+          // Mark these lines as part of the final diff
+          for (let i = startLine; i < startLine + count; i++) {
+            finalLines.add(i);
+          }
+        }
+      }
+    }
+    
+    return finalLines;
+  } catch {
+    return new Set<number>();
+  }
 }

@@ -330,11 +330,9 @@ function newFunction() {
     
     // Step 1: Collect Claude notes from all commits in "PR"
     const claudeCommitsData = await collectClaudeNotesFromCommits(testDir, baseCommit, headCommit);
-    console.log('Collected Claude commits data:', claudeCommitsData);
     
     // Step 2: Analyze final diff and map Claude contributions
     const finalClaudeNote = await analyzeClaudeLines(testDir, claudeCommitsData, baseCommit, headCommit);
-    console.log('Final Claude note:', finalClaudeNote);
     
     // Step 3: Simulate squash merge by creating a new commit with squashed changes  
     await execCommand('git', ['reset', '--soft', baseCommit], testDir);
@@ -365,9 +363,7 @@ function newFunction() {
     // Verify that the ranges make sense for the final file structure
     // The exact line numbers will depend on how the diff analysis maps the changes
     expect(finalFileData.ranges.length).toBeGreaterThan(0);
-    
-    console.log('Final tracked ranges for example.js:', finalFileData.ranges);
-    
+        
     // Additional verification: check that the final file content matches expectations
     const finalFileContent = await readFile(join(testDir, 'example.js'), 'utf-8');
     const expectedLines = finalFileContent.split('\n').length;
@@ -379,9 +375,7 @@ function newFunction() {
         trackedLines += range[1] - range[0] + 1;
       }
     }
-    
-    console.log(`Final file has ${expectedLines} lines, Claude tracked for ${trackedLines} lines`);
-    
+        
     // The key test: Claude should be credited with contributing to the final result,
     // but not necessarily all lines (since some original lines may have been removed)
     expect(trackedLines).toBeGreaterThan(0);
@@ -511,7 +505,5 @@ console.log("updated by claude");`);
     // Both files should be tracked since both exist in the final diff
     expect(squashedNoteData.claude_was_here.files['file1.js']).toBeDefined();
     expect(squashedNoteData.claude_was_here.files['file2.py']).toBeDefined();
-    
-    console.log('Multi-file tracking results:', squashedNoteData.claude_was_here.files);
   });
 });
