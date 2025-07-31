@@ -1,0 +1,80 @@
+name: claude-was-here Preserve git Notes (Pre-merge)
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  collect-claude-notes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to access all commits
+          
+      - name: Get PR commits
+        id: get-commits
+        run: |
+          # Get all commit hashes in this PR
+          git log --format="%H" origin/${{ github.base_ref }}..HEAD > pr_commits.txt
+          echo "Found $(wc -l < pr_commits.txt) commits in PR"
+          
+      - name: Collect and analyze Claude notes from PR commits
+        id: collect-notes
+        run: |
+          commit_count=0
+          
+          # Create a mapping of files to all Claude-touched lines across commits
+          echo "{}" > claude_files_map.json
+          
+          while IFS= read -r commit_hash; do
+            if [ -n "$commit_hash" ]; then
+              # Check if this commit has a git note
+              if git notes show "$commit_hash" 2>/dev/null; then
+                echo "Processing commit: $commit_hash"
+                
+                # Parse the note to extract file paths and line ranges
+                git notes show "$commit_hash" | while IFS= read -r line; do
+                  # Skip header lines
+                  if [[ "$line" == "claude-was-here" ]] || [[ "$line" == "version:"* ]]; then
+                    continue
+                  fi
+                  
+                  # Parse lines like "src/file.ts: 10-20,25-30"
+                  if [[ "$line" =~ ^([^:]+):[[:space:]]+(.+)$ ]]; then
+                    filepath="${BASH_REMATCH[1]}"
+                    ranges="${BASH_REMATCH[2]}"
+                    
+                    echo "File: $filepath, Ranges: $ranges" >> claude_files_debug.txt
+                    
+                    # Store this information for later processing
+                    echo "$commit_hash|$filepath|$ranges" >> claude_commits_data.txt
+                  fi
+                done
+                
+                commit_count=$((commit_count + 1))
+              fi
+            fi
+          done < pr_commits.txt
+          
+          echo "commits_with_notes=$commit_count" >> $GITHUB_OUTPUT
+          
+          if [ -f "claude_commits_data.txt" ]; then
+            echo "Found Claude notes in $commit_count commits"
+          else
+            echo "No Claude notes found in this PR"
+          fi
+          
+      - name: Upload Claude notes as artifact
+        if: steps.collect-notes.outputs.commits_with_notes != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-notes-pr-${{ github.event.number }}
+          path: |
+            claude_commits_data.txt
+            claude_files_debug.txt
+          retention-days: 30

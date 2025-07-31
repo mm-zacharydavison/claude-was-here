@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { installClaudeHooks } from './commands/install-claude-hooks.ts';
 import { installGitHooks } from './commands/install-git-hooks.ts';
 import { installBinary } from './commands/install-binary.ts';
+import { installGitHubActions } from './commands/install-github-actions.ts';
 import { trackChanges } from './commands/track-changes.ts';
 import { preCommitHook } from './commands/pre-commit.ts';
 import { postCommitHook } from './commands/post-commit.ts';
@@ -65,6 +66,18 @@ program
       console.log('✅ Git hooks installed');
     } catch (error) {
       console.error('❌ Failed to install git hooks:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('install-github-actions')
+  .description('Install GitHub Actions workflows for preserving Claude notes during PR squashes')
+  .action(async () => {
+    try {
+      await installGitHubActions();
+    } catch (error) {
+      console.error('❌ Failed to install GitHub Actions:', error);
       process.exit(1);
     }
   });
