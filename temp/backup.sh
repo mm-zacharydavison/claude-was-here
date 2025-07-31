@@ -26,16 +26,10 @@ backup_files() {
     fi
 }
 
-cleanup_old_backups() {
-    echo "Cleaning up backups older than 7 days..."
-    find "$BACKUP_DIR" -name "backup_*.tar.gz" -mtime +7 -delete
-}
-
 main() {
     echo "=== Backup Script Started ==="
     create_backup_dir
     backup_files
-    cleanup_old_backups
     echo "=== Backup Script Completed ==="
 }
 
