@@ -2,7 +2,7 @@ import { readFile, unlink, readdir, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { getClaudeWasHereDir } from '../utils/files.ts';
 import { getCurrentCommitHash, addGitNote } from '../utils/git.ts';
-import type { CommitSummary, GitNoteData, LineRange } from '../types.ts';
+import type { CommitSummary, LineRange } from '../types.ts';
 
 export async function postCommitHook(): Promise<void> {
   try {
@@ -21,25 +21,22 @@ export async function postCommitHook(): Promise<void> {
       return;
     }
     
-    // Create minimal JSON note content - just version and file ranges
-    const noteData: GitNoteData = {
-      claude_was_here: {
-        version: "1.0",
-        files: {}
-      }
-    };
+    // Create TSV format
+    // First line: metadata (version)
+    const lines: string[] = ['version\t1.0'];
     
-    // Add detailed file information with ranges only
+    // Each subsequent line: filename and ranges
     for (const [filePath, fileData] of Object.entries(metadata.files)) {
-      const lines = fileData.claude_lines;
-      const ranges = convertLinesToRanges(lines);
+      const lineNumbers = fileData.claude_lines;
+      const ranges = convertLinesToRanges(lineNumbers);
       
-      noteData.claude_was_here.files[filePath] = {
-        ranges
-      };
+      // Format: filename\trange1,range2,range3...
+      // Where each range is start-end
+      const rangeStr = ranges.map(([start, end]) => `${start}-${end}`).join(',');
+      lines.push(`${filePath}\t${rangeStr}`);
     }
     
-    const noteContent = JSON.stringify(noteData, null, 2);
+    const noteContent = lines.join('\n');
     
     // Add note to git
     await addGitNote(commitHash, noteContent);

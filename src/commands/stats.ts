@@ -1,5 +1,5 @@
 import { execGitCommand } from '../utils/git.ts';
-import type { GitNoteData } from '../types.ts';
+import type { GitNoteData, LineRange } from '../types.ts';
 
 interface StatsOptions {
   since?: string;
@@ -121,7 +121,37 @@ async function getCommitsSince(since: string): Promise<string[]> {
 async function getCommitNote(commitHash: string): Promise<GitNoteData | null> {
   try {
     const noteContent = await execGitCommand(['notes', 'show', commitHash]);
-    return JSON.parse(noteContent);
+    
+    // Parse TSV format
+    const lines = noteContent.trim().split('\n');
+    if (lines.length === 0) return null;
+    
+    // First line is metadata
+    const [metaKey, metaValue] = lines[0].split('\t');
+    if (metaKey !== 'version') return null;
+    
+    const noteData: GitNoteData = {
+      claude_was_here: {
+        version: metaValue || "1.0",
+        files: {}
+      }
+    };
+    
+    // Parse file entries
+    for (let i = 1; i < lines.length; i++) {
+      const [filePath, rangesStr] = lines[i].split('\t');
+      if (!filePath || !rangesStr) continue;
+      
+      // Parse ranges (e.g., "1-10,15-20,25-25")
+      const ranges: LineRange[] = rangesStr.split(',').map(range => {
+        const [start, end] = range.split('-').map(n => parseInt(n, 10));
+        return [start, end];
+      });
+      
+      noteData.claude_was_here.files[filePath] = { ranges };
+    }
+    
+    return noteData;
   } catch {
     // No note for this commit
     return null;

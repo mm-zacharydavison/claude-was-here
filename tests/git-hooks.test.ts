@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { writeFile, readFile, mkdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { parseTsvToGitNoteData } from './helpers/tsv.ts';
 
 const execCommand = (command: string, args: string[], cwd: string): Promise<{ stdout: string; stderr: string; code: number }> => {
   return new Promise((resolve) => {
@@ -153,7 +154,7 @@ line 6`);
     const notesResult = await execCommand('git', ['notes', 'show'], testDir);
     expect(notesResult.code).toBe(0);
     
-    const noteData = JSON.parse(notesResult.stdout);
+    const noteData = parseTsvToGitNoteData(notesResult.stdout);
     expect(noteData.claude_was_here).toBeDefined();
     expect(noteData.claude_was_here.version).toBe('1.0');
     expect(noteData.claude_was_here.files).toBeDefined();
@@ -255,13 +256,13 @@ line 6`);
     // Check first commit notes
     const notes1Result = await execCommand('git', ['notes', 'show', firstCommitHash], testDir);
     expect(notes1Result.code).toBe(0);
-    const notes1Data = JSON.parse(notes1Result.stdout);
+    const notes1Data = parseTsvToGitNoteData(notes1Result.stdout);
     expect(notes1Data.claude_was_here.files['first.js']).toBeDefined();
     
     // Check second commit notes
     const notes2Result = await execCommand('git', ['notes', 'show', secondCommitHash], testDir);
     expect(notes2Result.code).toBe(0);
-    const notes2Data = JSON.parse(notes2Result.stdout);
+    const notes2Data = parseTsvToGitNoteData(notes2Result.stdout);
     expect(notes2Data.claude_was_here.files['second.py']).toBeDefined();
   });
 });

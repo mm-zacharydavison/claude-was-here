@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { mkdir, writeFile, readFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { parseTsvToGitNoteData } from './helpers/tsv.ts';
 
 // Helper function to execute commands
 const execCommand = (command: string, args: string[], cwd: string): Promise<{ stdout: string; stderr: string; code: number }> => {
@@ -163,7 +164,7 @@ describe('claude-was-here E2E Tests', () => {
     }
     expect(notesResult.code).toBe(0);
     
-    const noteData = JSON.parse(notesResult.stdout);
+    const noteData = parseTsvToGitNoteData(notesResult.stdout);
     expect(noteData.claude_was_here).toBeDefined();
     expect(noteData.claude_was_here.version).toBe('1.0');
     expect(noteData.claude_was_here.files).toBeDefined();
@@ -213,7 +214,7 @@ describe('claude-was-here E2E Tests', () => {
     }
     expect(notesResult.code).toBe(0);
     
-    const noteData = JSON.parse(notesResult.stdout);
+    const noteData = parseTsvToGitNoteData(notesResult.stdout);
     expect(Object.keys(noteData.claude_was_here.files)).toHaveLength(3);
     
     for (const file of files) {
@@ -300,7 +301,7 @@ line 8`;
     }
     expect(notesResult.code).toBe(0);
     
-    const noteData = JSON.parse(notesResult.stdout);
+    const noteData = parseTsvToGitNoteData(notesResult.stdout);
     const ranges = noteData.claude_was_here.files[fileName].ranges;
     
     // Should create ranges: [1,1], [3,5], [8,8]

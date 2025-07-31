@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { mkdir, writeFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { gitNoteDataToTsv } from './helpers/tsv.ts';
 
 const execGitCommand = (args: string[], cwd: string): Promise<{ stdout: string; stderr: string; code: number }> => {
   return new Promise((resolve) => {
@@ -88,7 +89,7 @@ console.log("line 5");`);
       }
     };
     
-    await execGitCommand(['notes', 'add', '-m', JSON.stringify(noteData)], testDir);
+    await execGitCommand(['notes', 'add', '-m', gitNoteDataToTsv(noteData)], testDir);
     
     // Run stats command
     const result = await execBunCommand(['stats'], testDir);
@@ -133,7 +134,7 @@ console.log("line 5");`);
         }
       }
     };
-    await execGitCommand(['notes', 'add', '-m', JSON.stringify(oldNoteData), oldCommit], testDir);
+    await execGitCommand(['notes', 'add', '-m', gitNoteDataToTsv(oldNoteData), oldCommit], testDir);
     
     // Create another file and commit it recently
     await writeFile(join(testDir, 'new.js'), 'console.log("new");');
@@ -152,7 +153,7 @@ console.log("line 5");`);
         }
       }
     };
-    await execGitCommand(['notes', 'add', '-m', JSON.stringify(newNoteData), newCommit], testDir);
+    await execGitCommand(['notes', 'add', '-m', gitNoteDataToTsv(newNoteData), newCommit], testDir);
     
     // Run stats with --since="1 week"
     const result = await execBunCommand(['stats', '--since=1 week'], testDir);
@@ -189,7 +190,7 @@ lineB`);
         }
       }
     };
-    await execGitCommand(['notes', 'add', '-m', JSON.stringify(note1), commit1], testDir);
+    await execGitCommand(['notes', 'add', '-m', gitNoteDataToTsv(note1), commit1], testDir);
     
     // Second commit modifying file1
     await writeFile(join(testDir, 'file1.js'), `line1
@@ -212,7 +213,7 @@ line5`);
         }
       }
     };
-    await execGitCommand(['notes', 'add', '-m', JSON.stringify(note2), commit2], testDir);
+    await execGitCommand(['notes', 'add', '-m', gitNoteDataToTsv(note2), commit2], testDir);
     
     // Run stats
     const result = await execBunCommand(['stats'], testDir);
@@ -242,7 +243,7 @@ line5`);
         }
       }
     };
-    await execGitCommand(['notes', 'add', '-m', JSON.stringify(noteData), commit], testDir);
+    await execGitCommand(['notes', 'add', '-m', gitNoteDataToTsv(noteData), commit], testDir);
     
     // Delete the file and commit
     await execGitCommand(['rm', 'deleted.js'], testDir);

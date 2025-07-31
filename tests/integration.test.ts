@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { mkdir, writeFile, readFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { parseTsvToGitNoteData } from './helpers/tsv.ts';
 
 const execBunCommand = (args: string[], cwd: string): Promise<{ stdout: string; stderr: string; code: number }> => {
   return new Promise((resolve) => {
@@ -120,7 +121,7 @@ describe('Integration Tests', () => {
     await new Promise((resolve) => notesProc.on('close', resolve));
     
     if (notesOutput.trim()) {
-      const noteData = JSON.parse(notesOutput);
+      const noteData = parseTsvToGitNoteData(notesOutput);
       expect(noteData.claude_was_here).toBeDefined();
       expect(noteData.claude_was_here.version).toBe('1.0');
       expect(noteData.claude_was_here.files).toBeDefined();
