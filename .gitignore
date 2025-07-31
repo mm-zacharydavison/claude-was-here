@@ -1,0 +1,10 @@
+# claude-was-here - temporary data (not committed)
+.claude/was-here/
+
+# Node/Bun
+node_modules/
+bun.lockb
+dist/
+
+# Build artifacts
+claude-was-here

@@ -1,0 +1,29 @@
+{
+  "name": "@zdavison/claude-was-here",
+  "version": "0.0.1",
+  "description": "Track lines changed by Claude Code using git hooks and git notes",
+  "main": "dist/cli.js",
+  "bin": {
+    "claude-was-here": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "bun build src/cli.ts --outdir dist --target bun --format esm",
+    "build:binary": "bun build src/cli.ts --compile --outfile claude-was-here",
+    "dev": "bun run src/cli.ts",
+    "init": "bun run src/cli.ts init",
+    "type-check": "tsc --noEmit",
+    "test": "bun test tests/",
+    "test:watch": "bun test tests/ --watch"
+  },
+  "keywords": ["claude", "git", "hooks", "tracking", "ai"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "^1.2.19",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "commander": "^11.0.0"
+  }
+}
