@@ -1,5 +1,7 @@
 # `claude-was-here`
 
+>[!IMPORTANT] This is work-in-progress and likely not ready to use yet. I will certainly be implementing breaking changes.
+
 `claude-was-here` is a tool for automatically tracking lines changed by Claude Code in your git repository.
 
 It's primary purpose if providing you with an easy way to see what % of code is being written by `claude`.
