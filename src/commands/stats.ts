@@ -134,6 +134,9 @@ async function getCommitNote(commitHash: string): Promise<GitNoteData | null> {
       const line = lines[i].trim();
       if (!line) continue;
       
+      // Skip content-signatures line
+      if (line.startsWith('content-signatures:')) continue;
+      
       // Find the colon and split there
       const colonIndex = line.indexOf(':');
       if (colonIndex === -1) continue;
