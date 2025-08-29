@@ -108,9 +108,31 @@ program
 program
   .command('stats')
   .description('Show statistics about Claude Code contributions')
-  .option('--since <period>', 'Time period to analyze (e.g., "1 week", "2 months", "1 year")', '1 week')
+  .option('--since <period>', 'Time period to analyze (e.g., "1 week", "2 months", "1 year")')
   .action(async (options) => {
     await showStats(options);
+  });
+
+// GitHub Actions commands
+program
+  .command('github-synchronize-pr')
+  .description('Internal: Collect and consolidate Claude notes from PR commits (used by GitHub Actions)')
+  .requiredOption('--base <commit>', 'Base commit hash')
+  .requiredOption('--head <commit>', 'Head commit hash')
+  .action(async (options) => {
+    const { githubSynchronizePR } = await import('./commands/github-actions.ts');
+    await githubSynchronizePR(options.base, options.head);
+  });
+
+program
+  .command('github-squash-pr')
+  .description('Internal: Apply consolidated Claude notes to squashed merge commit (used by GitHub Actions)')
+  .requiredOption('--data-file <path>', 'Path to collected notes data file')
+  .requiredOption('--base <commit>', 'Base commit hash')
+  .requiredOption('--merge <commit>', 'Merge commit hash')
+  .action(async (options) => {
+    const { githubSquashPR } = await import('./commands/github-actions.ts');
+    await githubSquashPR(options.dataFile, options.base, options.merge);
   });
 
 program

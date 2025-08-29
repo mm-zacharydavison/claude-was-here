@@ -1,6 +1,7 @@
-import { writeFile, mkdir, readFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { logger } from '../utils/logger.ts';
 
 const PRE_MERGE_WORKFLOW = `name: claude-was-here Preserve git Notes (Pre-merge)
 
@@ -20,83 +21,33 @@ jobs:
         with:
           fetch-depth: 0  # Fetch full history to access all commits
           
-      - name: Get PR commits
-        id: get-commits
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Get base and head commits
+        id: commits
         run: |
-          # Get all commit hashes in this PR
-          git log --format="%H" origin/\${{ github.base_ref }}..HEAD > pr_commits.txt
-          echo "Found $(wc -l < pr_commits.txt) commits in PR"
+          BASE_COMMIT=\$(git merge-base HEAD origin/\${{ github.base_ref }})
+          HEAD_COMMIT=\$(git rev-parse HEAD)
+          echo "base_commit=\$BASE_COMMIT" >> \$GITHUB_OUTPUT
+          echo "head_commit=\$HEAD_COMMIT" >> \$GITHUB_OUTPUT
+          echo "Base commit: \$BASE_COMMIT"
+          echo "Head commit: \$HEAD_COMMIT"
           
-      - name: Collect and analyze Claude notes from PR commits
-        id: collect-notes
+      - name: Collect and consolidate Claude notes
         run: |
-          commit_count=0
+          npx @zdavison/claude-was-here@latest github-synchronize-pr --base "\${{ steps.commits.outputs.base_commit }}" --head "\${{ steps.commits.outputs.head_commit }}"
           
-          # Create a mapping of files to all Claude-touched lines across commits
-          echo "{}" > claude_files_map.json
-          
-          while IFS= read -r commit_hash; do
-            if [ -n "$commit_hash" ]; then
-              # Check if this commit has a git note
-              if git notes show "$commit_hash" 2>/dev/null; then
-                echo "Processing commit: $commit_hash"
-                
-                # Parse the note to extract file paths and line ranges
-                git notes show "$commit_hash" | while IFS= read -r line; do
-                  # Skip header lines
-                  if [[ "$line" == "claude-was-here" ]] || [[ "$line" == "version:"* ]]; then
-                    continue
-                  fi
-                  
-                  # Parse lines like "src/file.ts: 10-20,25-30"
-                  if [[ "$line" =~ ^([^:]+):[[:space:]]+(.+)$ ]]; then
-                    filepath="\${BASH_REMATCH[1]}"
-                    ranges="\${BASH_REMATCH[2]}"
-                    
-                    echo "File: $filepath, Ranges: $ranges" >> claude_files_debug.txt
-                    
-                    # Store this information for later processing
-                    echo "$commit_hash|$filepath|$ranges" >> claude_commits_data.txt
-                  fi
-                done
-                
-                commit_count=$((commit_count + 1))
-              fi
-            fi
-          done < pr_commits.txt
-          
-          echo "commits_with_notes=$commit_count" >> $GITHUB_OUTPUT
-          
-          if [ -f "claude_commits_data.txt" ]; then
-            echo "Found Claude notes in $commit_count commits"
-          else
-            echo "No Claude notes found in this PR"
-          fi
-          
-      - name: Upload Claude notes as artifact
-        if: steps.collect-notes.outputs.commits_with_notes != '0'
+      - name: Upload Claude notes data as artifact
+        if: hashFiles('claude-notes-data.json') != ''
         uses: actions/upload-artifact@v4
         with:
           name: claude-notes-pr-\${{ github.event.number }}
-          path: |
-            claude_commits_data.txt
-            claude_files_debug.txt
+          path: claude-notes-data.json
           retention-days: 30`;
 
-/**
- * Get the pre-built GitHub script from the dist directory
- */
-const getBundledAnalyzeClaudeLinesScript = async (): Promise<string> => {
-  const bundledScriptPath = join(__dirname, '..', '..', 'dist', 'github-scripts', 'analyze-claude-lines.js');
-  
-  if (!existsSync(bundledScriptPath)) {
-    throw new Error(
-      'Bundled GitHub script not found. Please run "bun run build" first to generate the bundled script.'
-    );
-  }
-  
-  return await readFile(bundledScriptPath, 'utf-8');
-};
 const POST_MERGE_WORKFLOW = `name: claude-was-here Preserve git Notes (Post-merge)
 
 on:
@@ -127,11 +78,11 @@ jobs:
       - name: Check if Claude notes exist
         id: check-notes
         run: |
-          if [ -f "./artifacts/claude_commits_data.txt" ]; then
-            echo "notes_exist=true" >> $GITHUB_OUTPUT
+          if [ -f "./artifacts/claude-notes-data.json" ]; then
+            echo "notes_exist=true" >> \$GITHUB_OUTPUT
             echo "Found Claude notes artifact"
           else
-            echo "notes_exist=false" >> $GITHUB_OUTPUT
+            echo "notes_exist=false" >> \$GITHUB_OUTPUT
             echo "No Claude notes artifact found"
           fi
           
@@ -141,74 +92,56 @@ jobs:
         with:
           node-version: '18'
           
-      - name: Process and attach Claude notes to merge commit
+      - name: Apply consolidated Claude notes to squashed commit
         if: steps.check-notes.outputs.notes_exist == 'true'
         run: |
           # Get the latest commit (should be the merge/squash commit)
-          latest_commit=$(git rev-parse HEAD)
-          echo "Latest commit: $latest_commit"
+          MERGE_COMMIT=\$(git rev-parse HEAD)
+          echo "Merge commit: \$MERGE_COMMIT"
           
           # Get the base commit to compare against
-          base_commit=$(git merge-base HEAD origin/\${{ github.event.pull_request.base.ref }})
-          echo "Base commit: $base_commit"
+          BASE_COMMIT=\$(git merge-base HEAD origin/\${{ github.event.pull_request.base.ref }})
+          echo "Base commit: \$BASE_COMMIT"
           
-          # Run the Claude lines analysis using the bundled JavaScript script
-          node .github/scripts/analyze-claude-lines.js ./artifacts/claude_commits_data.txt "$base_commit" "$latest_commit" > final_claude_note.txt
-          
-          # Add the consolidated note to the merge commit
-          git notes add -F final_claude_note.txt "$latest_commit"
-          
-          # Push the notes
-          git push origin refs/notes/commits
-          
-          echo "Successfully attached consolidated Claude notes to commit $latest_commit"
-          echo "Final note content:"
-          cat final_claude_note.txt`;
+          # Use claude-was-here to apply consolidated notes to the squashed commit
+          npx @zdavison/claude-was-here@latest github-squash-pr --data-file "./artifacts/claude-notes-data.json" --base "\$BASE_COMMIT" --merge "\$MERGE_COMMIT"`;
 
 export async function installGitHubActions(): Promise<void> {
   const workflowsDir = join(process.cwd(), '.github', 'workflows');
-  const scriptsDir = join(process.cwd(), '.github', 'scripts');
   
   // Check if we're in a git repository
   if (!existsSync(join(process.cwd(), '.git'))) {
     throw new Error('Not in a git repository. Please run this command from the root of your git repository.');
   }
   
-  console.log('🔧 Installing GitHub Actions workflows...');
+  logger.log('🔧 Installing GitHub Actions workflows...');
   
-  // Create .github/workflows and .github/scripts directories
+  // Create .github/workflows directory
   await mkdir(workflowsDir, { recursive: true });
-  await mkdir(scriptsDir, { recursive: true });
-  
-  // Copy the pre-built bundled script
-  const scriptDestPath = join(scriptsDir, 'analyze-claude-lines.js');
-  console.log('📦 Using pre-built GitHub analysis script...');
-  const bundledContent = await getBundledAnalyzeClaudeLinesScript();
-  // Add Node.js shebang to make it executable
-  const executableContent = `#!/usr/bin/env node\n${bundledContent}`;
-  await writeFile(scriptDestPath, executableContent);
-  console.log(`✅ Created ${scriptDestPath}`);
   
   // Write the pre-merge workflow
   const preWorkflowPath = join(workflowsDir, 'preserve-claude-notes-pre.yml');
   await writeFile(preWorkflowPath, PRE_MERGE_WORKFLOW);
-  console.log(`✅ Created ${preWorkflowPath}`);
+  logger.log(`✅ Created ${preWorkflowPath}`);
   
   // Write the post-merge workflow
   const postWorkflowPath = join(workflowsDir, 'preserve-claude-notes-post.yml');
   await writeFile(postWorkflowPath, POST_MERGE_WORKFLOW);
-  console.log(`✅ Created ${postWorkflowPath}`);
+  logger.log(`✅ Created ${postWorkflowPath}`);
   
-  console.log('\n🎉 GitHub Actions workflows installed successfully!');
-  console.log('\nWhat was installed:');
-  console.log('📁 .github/workflows/preserve-claude-notes-pre.yml - Collects Claude notes from PR commits');
-  console.log('📁 .github/workflows/preserve-claude-notes-post.yml - Attaches consolidated notes to squashed commits');
-  console.log('📁 .github/scripts/analyze-claude-lines.js - Bundled JavaScript script for analyzing Claude contributions');
-  console.log('\n📝 These workflows will:');
-  console.log('   • Preserve Claude Code tracking data when PRs are squashed');
-  console.log('   • Automatically run on pull request events');
-  console.log('   • Ensure accurate attribution in the final commit notes');
-  console.log('\n💡 The workflows require GitHub repository permissions:');
-  console.log('   • contents: read/write - to access and modify git notes');
-  console.log('   • pull-requests: read - to access PR information');
+  logger.log('\n🎉 GitHub Actions workflows installed successfully!');
+  logger.log('\nWhat was installed:');
+  logger.log('📁 .github/workflows/preserve-claude-notes-pre.yml - Collects Claude notes from PR commits');
+  logger.log('📁 .github/workflows/preserve-claude-notes-post.yml - Attaches consolidated notes to squashed commits');
+  logger.log('\n📝 These workflows will:');
+  logger.log('   • Preserve Claude Code tracking data when PRs are squashed');
+  logger.log('   • Use npx to run claude-was-here commands directly');
+  logger.log('   • Automatically run on pull request events');
+  logger.log('   • Ensure accurate attribution in the final commit notes');
+  logger.log('\n💡 The workflows require GitHub repository permissions:');
+  logger.log('   • contents: read/write - to access and modify git notes');
+  logger.log('   • pull-requests: read - to access PR information');
+  logger.log('\n🚀 The workflows use npx to run claude-was-here commands:');
+  logger.log('   • github-synchronize-pr - Collects and consolidates notes from PR commits');
+  logger.log('   • github-squash-pr - Applies consolidated notes to squashed merge commits');
 }

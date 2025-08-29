@@ -7,6 +7,7 @@ import {
   StructuredPatchHunk 
 } from '../types.ts';
 import { ensureDirectory, getWorkingTrackingDir, getTrackingDataFile, fileExists } from '../utils/files.ts';
+import { logger } from '../utils/logger.ts';
 
 /**
  * Creates a structured patch from old and new content strings
@@ -220,7 +221,7 @@ async function readTrackingData(): Promise<WorkingTrackingData> {
       const data = JSON.parse(content) as WorkingTrackingData;
       return data;
     } catch (error) {
-      console.warn('Failed to read tracking data, starting fresh:', error);
+      logger.warn('Failed to read tracking data, starting fresh:', error);
     }
   }
   
@@ -249,7 +250,7 @@ export async function trackChanges(): Promise<void> {
     }
     
     if (!stdinData.trim()) {
-      console.error('No hook data received from stdin');
+      logger.error('No hook data received from stdin');
       return;
     }
     
@@ -269,12 +270,12 @@ export async function trackChanges(): Promise<void> {
         changeRecord = processWriteTool(hookData);
         break;
       default:
-        console.log(`Ignoring unsupported tool: ${hookData.tool_name}`);
+        logger.log(`Ignoring unsupported tool: ${hookData.tool_name}`);
         return;
     }
     
     if (!changeRecord) {
-      console.error('Failed to process tool data');
+      logger.error('Failed to process tool data');
       return;
     }
     
@@ -287,9 +288,9 @@ export async function trackChanges(): Promise<void> {
     // Write back to file
     await writeTrackingData(trackingData);
     
-    console.log(`Tracked changes to ${changeRecord.filePath}`);
+    logger.log(`Tracked changes to ${changeRecord.filePath}`);
   } catch (error) {
-    console.error('Error tracking changes:', error);
+    logger.error('Error tracking changes:', error);
     process.exit(1);
   }
 }

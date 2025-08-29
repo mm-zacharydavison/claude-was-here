@@ -166,12 +166,13 @@ async function getCurrentLineCount(filePath: string): Promise<number> {
 /**
  * Rolls up authorship data across multiple commits to produce final authorship state
  * 
- * This function processes commits chronologically and tracks how line authorship evolves:
- * 1. Start with empty authorship state
- * 2. For each commit, apply AI authorship data from git notes
- * 3. Any lines not marked as AI-authored are considered human-authored
- * 4. Handle file changes (lines added/removed) by adjusting line numbers
- * 5. Return final state that reflects current file contents
+ * This function processes ALL commits chronologically and tracks file evolution:
+ * 1. Process every commit chronologically, not just ones with authorship data
+ * 2. For each file, maintain a line-by-line authorship state 
+ * 3. When a commit has authorship data, update authorship for specified lines
+ * 4. When a commit modifies a file (with or without authorship data), invalidate
+ *    authorship for lines that may have changed
+ * 5. Return final state that reflects current file contents with accurate authorship
  */
 export async function rollupAuthorship(since?: string): Promise<RollupResult> {
   const commits = await getCommitsWithTimestamps(since);
@@ -191,52 +192,151 @@ export async function rollupAuthorship(since?: string): Promise<RollupResult> {
     }
   }
   
-  // Track final authorship state for each file
+  // Track authorship state evolution for each file
   const fileStates = new Map<string, FileAuthorshipState>();
   
-  // Process commits chronologically
+  // Get list of all files that were modified across all commits
+  const allModifiedFiles = new Set<string>();
   for (const commit of commits) {
-    if (!commit.authorshipData) continue;
+    try {
+      // Get list of files changed in this commit
+      const output = await execGitCommand(['diff-tree', '--no-commit-id', '--name-only', '-r', commit.hash]);
+      if (output) {
+        output.split('\n').forEach(file => {
+          if (file.trim()) {
+            allModifiedFiles.add(file.trim());
+          }
+        });
+      }
+    } catch {
+      // If we can't get file list, continue
+    }
     
-    for (const fileInfo of commit.authorshipData.files) {
-      const filePath = fileInfo.filePath;
+    // Also add files from authorship data
+    if (commit.authorshipData) {
+      commit.authorshipData.files.forEach(fileInfo => {
+        allModifiedFiles.add(fileInfo.filePath);
+      });
+    }
+  }
+  
+  // Initialize file states for all modified files
+  for (const filePath of allModifiedFiles) {
+    fileStates.set(filePath, {
+      filePath,
+      totalLines: 0,
+      authorshipMap: new Map()
+    });
+  }
+  
+  // Track which files have had non-authorship commits since their last authorship commit
+  const filesWithInterveningChanges = new Map<string, boolean>();
+  
+  // Process commits chronologically and track file evolution
+  for (let commitIndex = 0; commitIndex < commits.length; commitIndex++) {
+    const commit = commits[commitIndex];
+    
+    // Get files modified in this commit
+    const filesModifiedInCommit = new Set<string>();
+    try {
+      // Try diff-tree first
+      const output = await execGitCommand(['diff-tree', '--no-commit-id', '--name-only', '-r', commit.hash]);
+      if (output && output.trim()) {
+        output.split('\n').forEach(file => {
+          if (file.trim()) {
+            filesModifiedInCommit.add(file.trim());
+          }
+        });
+      } else {
+        // If diff-tree returns empty (initial commit), get all files in the commit
+        const lsOutput = await execGitCommand(['ls-tree', '--name-only', '-r', commit.hash]);
+        if (lsOutput) {
+          lsOutput.split('\n').forEach(file => {
+            if (file.trim()) {
+              filesModifiedInCommit.add(file.trim());
+            }
+          });
+        }
+      }
+    } catch {
+      // Continue if we can't get the file list
+    }
+    
+    // For each file modified in this commit, handle authorship
+    for (const filePath of filesModifiedInCommit) {
+      const fileState = fileStates.get(filePath);
+      if (!fileState) continue;
       
-      // Get or create file state
-      let fileState = fileStates.get(filePath);
-      if (!fileState) {
-        fileState = {
-          filePath,
-          totalLines: 0,
-          authorshipMap: new Map()
-        };
-        fileStates.set(filePath, fileState);
+      // Get file content at this commit
+      let fileContentAtCommit: string | null = null;
+      try {
+        const output = await execGitCommand(['show', `${commit.hash}:${filePath}`]);
+        fileContentAtCommit = output;
+      } catch {
+        // File might have been deleted or other git error
+        continue;
       }
       
-      // Mark AI-authored lines from this commit
-      const aiLines = expandLineRanges(fileInfo.aiAuthoredRanges);
+      if (!fileContentAtCommit) continue;
       
-      for (const lineNumber of aiLines) {
-        fileState.authorshipMap.set(lineNumber, {
-          lineNumber,
-          isAiAuthored: true,
-          commitHash: commit.hash,
-          timestamp: commit.timestamp
-        });
+      const linesAtCommit = fileContentAtCommit.split('\n');
+      
+      // If this commit has authorship data for this file, apply it
+      if (commit.authorshipData) {
+        const fileAuthorship = commit.authorshipData.files.find(f => f.filePath === filePath);
+        if (fileAuthorship) {
+          const aiLines = expandLineRanges(fileAuthorship.aiAuthoredRanges);
+          
+          // Only clear existing authorship if there were intervening changes
+          // that could have invalidated the previous authorship
+          if (filesWithInterveningChanges.get(filePath)) {
+            fileState.authorshipMap.clear();
+            filesWithInterveningChanges.set(filePath, false);
+          }
+          
+          // Add/update authorship based on this commit
+          for (const lineNumber of aiLines) {
+            if (lineNumber > 0 && lineNumber <= linesAtCommit.length) {
+              fileState.authorshipMap.set(lineNumber, {
+                lineNumber,
+                isAiAuthored: true,
+                commitHash: commit.hash,
+                timestamp: commit.timestamp + commitIndex
+              });
+            }
+          }
+        } else {
+          // File was modified but no authorship data for this file in this commit
+          // Mark that this file has intervening changes
+          filesWithInterveningChanges.set(filePath, true);
+        }
+      } else {
+        // File was modified but no authorship data at all for this commit
+        // Mark that this file has intervening changes that could invalidate authorship
+        filesWithInterveningChanges.set(filePath, true);
       }
     }
   }
   
-  // Update current line counts and validate against current file state
+  // Final validation: ensure authorship only applies to lines that exist in current files
   for (const [filePath, fileState] of fileStates) {
     const currentLineCount = await getCurrentLineCount(filePath);
     fileState.totalLines = currentLineCount;
     
+    if (currentLineCount === 0) {
+      // File was deleted, clear all authorship
+      fileState.authorshipMap.clear();
+      continue;
+    }
+    
     // Remove authorship entries for lines that no longer exist
-    for (const [lineNumber] of fileState.authorshipMap) {
-      if (lineNumber > currentLineCount) {
-        fileState.authorshipMap.delete(lineNumber);
+    const validAuthorship = new Map<number, AuthorshipEntry>();
+    for (const [lineNumber, entry] of fileState.authorshipMap) {
+      if (lineNumber > 0 && lineNumber <= currentLineCount) {
+        validAuthorship.set(lineNumber, entry);
       }
     }
+    fileState.authorshipMap = validAuthorship;
   }
   
   return {

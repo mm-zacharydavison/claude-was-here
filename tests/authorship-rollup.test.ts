@@ -268,4 +268,98 @@ test.js: 2`);
     expect(stats.aiLines).toBe(2);
     expect(stats.totalLines).toBe(3);
   });
+
+  test('handles in-between commits that do not have authorship data, but changed the same files as commits with authorship data', async () => {
+    // Commit 1: Initial file with AI authorship on lines 2-5
+    const commit1 = await commitFile('test.js', 'human_line1\nai_line2\nai_line3\nai_line4\nai_line5\nhuman_line6\nhuman_line7', 'Initial with AI');
+    await addGitNote(commit1, `claude-was-here
+version: 1.1
+test.js: 2-5`);
+
+    // Commit 2: Human modifies the file with complex changes:
+    // - Deletes some AI-authored lines (line 3, 4)  
+    // - Modifies existing lines (changes content but keeps line numbers)
+    // - Adds new lines in between and at end
+    // - Reorders some content
+    await commitFile('test.js', 'human_line1_modified\nai_line2_modified\nai_line5_kept\nhuman_line6_modified\nnew_human_line\nhuman_line7\nnew_human_line2\nnew_human_line3', 'Human makes complex changes');
+    // No git note added for this commit
+
+    // Commit 3: More human changes without authorship data
+    // - Delete some lines
+    // - Add lines at the beginning
+    await commitFile('test.js', 'new_start_line\nhuman_line1_modified\nai_line2_modified\nhuman_line6_modified\nnew_human_line\nhuman_line7\nnew_final_line', 'More human changes');
+    // No git note added for this commit
+
+    // Commit 4: AI makes changes with authorship data
+    // - Adds new lines at various positions
+    // - Some AI lines will be at positions where old AI lines used to be
+    const commit4 = await commitFile('test.js', 'new_start_line\nai_new_line2\nhuman_line1_modified\nai_line2_modified\nai_new_middle_line\nhuman_line6_modified\nnew_human_line\nai_new_line8\nhuman_line7\nai_final_line\nnew_final_line', 'AI adds more lines');
+    await addGitNote(commit4, `claude-was-here
+version: 1.1
+test.js: 2, 5, 8, 10`);
+
+    // Commit 5: Human deletes some AI lines and adds more content
+    await commitFile('test.js', 'new_start_line\nhuman_line1_modified\nai_line2_modified\nhuman_deleted_ai_middle\nhuman_line6_modified\nnew_human_line\nhuman_line7\nai_final_line\nnew_final_line\nhuman_added_at_end', 'Human deletes some AI and adds content');
+    // No git note added for this commit
+
+    // Commit 6: Final AI commit with more authorship data
+    const commit6 = await commitFile('test.js', 'ai_very_first_line\nnew_start_line\nhuman_line1_modified\nai_line2_modified\nai_replacement_line\nhuman_deleted_ai_middle\nhuman_line6_modified\nnew_human_line\nhuman_line7\nai_final_line\nai_very_last_line\nnew_final_line\nhuman_added_at_end', 'Final AI changes');
+    await addGitNote(commit6, `claude-was-here
+version: 1.1
+test.js: 1, 5, 11`);
+
+    const result = await rollupAuthorship();
+
+    expect(result.totalCommitsProcessed).toBe(6);
+    expect(result.files.size).toBe(1);
+
+    const fileState = result.files.get('test.js');
+    expect(fileState).toBeDefined();
+    expect(fileState!.totalLines).toBe(13);
+
+    // Expected behavior: Only the FINAL commit with authorship data (commit6) should be preserved
+    // because all intermediate commits without authorship data invalidate previous authorship.
+    // This is the correct behavior when files are significantly modified between AI commits.
+    // From commit6 (1, 5, 11): Lines 1, 5, 11 are the only AI-authored lines that survive
+
+    const stats = getFileStats(fileState!);
+    
+    // Verify that we have only the expected AI-authored lines from the final commit
+    expect(fileState!.authorshipMap.has(1)).toBe(true);  // ai_very_first_line (commit6)
+    expect(fileState!.authorshipMap.has(5)).toBe(true);  // ai_replacement_line (commit6)
+    expect(fileState!.authorshipMap.has(11)).toBe(true); // ai_very_last_line (commit6)
+
+    // Verify that earlier AI authorship was properly invalidated by intermediate commits
+    expect(fileState!.authorshipMap.has(2)).toBe(false); // Was from commit1, invalidated
+    expect(fileState!.authorshipMap.has(3)).toBe(false); // Was from commit1, invalidated
+    expect(fileState!.authorshipMap.has(4)).toBe(false); // Was from commit1, invalidated
+    expect(fileState!.authorshipMap.has(8)).toBe(false); // Was from commit4, invalidated
+    expect(fileState!.authorshipMap.has(10)).toBe(false); // Was from commit4, invalidated
+
+    expect(stats.aiLines).toBe(3); // Lines 1, 5, 11
+    expect(stats.humanLines).toBe(10); // Remaining lines
+    expect(stats.totalLines).toBe(13);
+    expect(stats.aiPercentage).toBeCloseTo(23.1, 1); // 3/13 ≈ 23.1%
+
+    // Verify all surviving authorship entries come from commit6
+    const line1Entry = fileState!.authorshipMap.get(1);
+    const line5Entry = fileState!.authorshipMap.get(5);
+    const line11Entry = fileState!.authorshipMap.get(11);
+
+    expect(line1Entry?.commitHash).toBe(commit6);
+    expect(line5Entry?.commitHash).toBe(commit6);
+    expect(line11Entry?.commitHash).toBe(commit6);
+
+    // Verify that all other lines are considered human-authored
+    expect(fileState!.authorshipMap.has(2)).toBe(false); // new_start_line (human)
+    expect(fileState!.authorshipMap.has(3)).toBe(false); // human_line1_modified (human)
+    expect(fileState!.authorshipMap.has(4)).toBe(false); // ai_line2_modified (now human due to invalidation)
+    expect(fileState!.authorshipMap.has(6)).toBe(false); // human_deleted_ai_middle (human)
+    expect(fileState!.authorshipMap.has(7)).toBe(false); // human_line6_modified (human)
+    expect(fileState!.authorshipMap.has(8)).toBe(false); // new_human_line (human)
+    expect(fileState!.authorshipMap.has(9)).toBe(false); // human_line7 (human)
+    expect(fileState!.authorshipMap.has(10)).toBe(false); // ai_final_line (now human due to invalidation)
+    expect(fileState!.authorshipMap.has(12)).toBe(false); // new_final_line (human)
+    expect(fileState!.authorshipMap.has(13)).toBe(false); // human_added_at_end (human)
+  });
 });

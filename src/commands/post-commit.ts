@@ -10,6 +10,7 @@ import {
 } from '../types.ts';
 import { getTrackingDataFile, fileExists } from '../utils/files.ts';
 import { getCurrentCommitHash, addGitNote } from '../utils/git.ts';
+import { logger } from '../utils/logger.ts';
 
 /**
  * Analyzes which lines in a file are still AI-authored vs human-modified
@@ -182,7 +183,7 @@ export async function postCommitHook(): Promise<void> {
     // Read current tracking data
     const trackingFile = getTrackingDataFile();
     if (!(await fileExists(trackingFile))) {
-      console.log('No tracking data found, nothing to process');
+      logger.log('No tracking data found, nothing to process');
       return;
     }
     
@@ -191,7 +192,7 @@ export async function postCommitHook(): Promise<void> {
     );
     
     if (trackingData.records.length === 0) {
-      console.log('No track changes to process');
+      logger.log('No track changes to process');
       return;
     }
     
@@ -225,9 +226,9 @@ export async function postCommitHook(): Promise<void> {
     // Clear the tracking data
     await rm(trackingFile);
     
-    console.log(`Added claude-was-here note to commit ${commitHash.substring(0, 8)}`);
+    logger.log(`Added claude-was-here note to commit ${commitHash.substring(0, 8)}`);
   } catch (error) {
-    console.error('Error in post-commit hook:', error);
+    logger.error('Error in post-commit hook:', error);
     process.exit(1);
   }
 }
