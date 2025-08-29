@@ -2,7 +2,6 @@ import { readFile, unlink, readdir, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { getClaudeWasHereDir } from '../utils/files.ts';
 import { getCurrentCommitHash, addGitNote } from '../utils/git.ts';
-import { ContentHashStore, type ClaudeTrackingDataHash } from '../lib/content-hash.ts';
 import type { CommitSummary, LineRange } from '../types.ts';
 
 export async function postCommitHook(): Promise<void> {
@@ -39,7 +38,7 @@ export async function postCommitHook(): Promise<void> {
 }
 
 async function createEnhancedGitNote(metadata: CommitSummary): Promise<string> {
-  const lines: string[] = ['claude-was-here', 'version: 1.1']; // Bump version for hash support
+  const lines: string[] = ['claude-was-here', 'version: 1.2']; // Bump version for unified tracking
   
   // Calculate the maximum filename length for alignment
   const filePaths = Object.keys(metadata.files);
@@ -49,56 +48,16 @@ async function createEnhancedGitNote(metadata: CommitSummary): Promise<string> {
   
   const maxLength = Math.max(...filePaths.map(path => path.length));
   
-  // Try to load hash-based data for enhanced notes
-  const wasHereDir = getClaudeWasHereDir();
-  const hashStore = new ContentHashStore(wasHereDir);
-  const contentHashes = new Set<string>();
-  
-  try {
-    await hashStore.load();
-  } catch {
-    // Hash store not available, use traditional format only
-  }
-  
-  // Traditional format with potential hash enhancements
+  // Simple, unified tracking format
   for (const [filePath, fileData] of Object.entries(metadata.files)) {
     const lineNumbers = fileData.claude_lines;
     const ranges = convertLinesToRanges(lineNumbers);
     
-    // Traditional range format
+    // Simple range format
     const rangeStr = ranges.map(([start, end]) => `${start}-${end}`).join(',');
     const paddedPath = `${filePath}:`.padEnd(maxLength + 2);
     
-    // Try to get hash-based data for this file
-    let hashInfo = '';
-    try {
-      const hashDataFile = join(wasHereDir, `${filePath.replace(/[/\\]/g, '_')}.hash.json`);
-      const hashDataContent = await readFile(hashDataFile, 'utf-8');
-      const hashTrackingData: ClaudeTrackingDataHash[] = JSON.parse(hashDataContent);
-      
-      // Collect unique content hashes for this commit
-      for (const trackingEntry of hashTrackingData) {
-        for (const change of trackingEntry.changes) {
-          contentHashes.add(change.signature); // Use signature for compactness
-        }
-      }
-      
-      // Add hash signatures as metadata (optional enhancement)
-      if (contentHashes.size > 0) {
-        const hashSigs = Array.from(contentHashes).slice(0, 5).join(','); // Limit to 5 for space
-        hashInfo = ` #${hashSigs}`;
-      }
-    } catch {
-      // No hash data for this file
-    }
-    
-    lines.push(`${paddedPath} ${rangeStr}${hashInfo}`);
-  }
-  
-  // Add content hash index at the end if we have hashes
-  if (contentHashes.size > 0) {
-    lines.push(''); // Empty line separator
-    lines.push(`content-signatures: ${Array.from(contentHashes).join(',')}`);
+    lines.push(`${paddedPath} ${rangeStr}`);
   }
   
   return lines.join('\n');

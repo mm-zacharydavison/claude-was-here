@@ -1,7 +1,6 @@
 import { readFile, writeFile, appendFile } from 'fs/promises';
 import { join, relative } from 'path';
 import { ensureDirectory, getClaudeWasHereDir } from '../utils/files.ts';
-import { ContentHashStore, createHashedTrackingData, type ClaudeTrackingDataHash } from '../lib/content-hash.ts';
 import type { ClaudeEditInput, ClaudeEditResponse, ClaudePostToolUseHookData, ClaudeMultiEditInput, ClaudeMultiEditResponse, FileMetadata } from '../types.ts';
 
 export async function trackChanges(): Promise<void> {
@@ -87,10 +86,27 @@ export async function trackChanges(): Promise<void> {
         const allLines = new Set<number>();
         
         for (const hunk of toolResponse.structuredPatch) {
-          // Add all lines in the new range (lines that were added or modified)
-          for (let lineNum = hunk.newStart; lineNum < hunk.newStart + hunk.newLines; lineNum++) {
-            allLines.add(lineNum);
+          // Only track lines that were actually added by Claude
+          // In a patch hunk:
+          // - oldLines: number of lines in the original content
+          // - newLines: number of lines in the new content
+          // - If newLines > oldLines, then (newLines - oldLines) lines were added
+          
+          const linesAdded = Math.max(0, hunk.newLines - hunk.oldLines);
+          
+          if (linesAdded > 0) {
+            // Lines were added - track the last 'linesAdded' lines in the new range
+            // These are the lines that Claude actually authored
+            const addedLinesStart = hunk.newStart + hunk.oldLines;
+            const addedLinesEnd = addedLinesStart + linesAdded - 1;
+            
+            for (let lineNum = addedLinesStart; lineNum <= addedLinesEnd; lineNum++) {
+              if (lineNum > 0) { // Ensure valid line numbers
+                allLines.add(lineNum);
+              }
+            }
           }
+          // If linesAdded <= 0, this was a deletion or replacement - no new lines to track
         }
         
         metadata.lines = Array.from(allLines).sort((a, b) => a - b);
@@ -136,16 +152,34 @@ export async function trackChanges(): Promise<void> {
         const allLines = new Set<number>();
         
         for (const hunk of toolResponse.structuredPatch) {
-          // Add all lines in the new range (lines that were added or modified)
-          for (let lineNum = hunk.newStart; lineNum < hunk.newStart + hunk.newLines; lineNum++) {
-            allLines.add(lineNum);
+          // Only track lines that were actually added by Claude
+          // In a patch hunk:
+          // - oldLines: number of lines in the original content
+          // - newLines: number of lines in the new content
+          // - If newLines > oldLines, then (newLines - oldLines) lines were added
+          
+          const linesAdded = Math.max(0, hunk.newLines - hunk.oldLines);
+          
+          if (linesAdded > 0) {
+            // Lines were added - track the last 'linesAdded' lines in the new range
+            // These are the lines that Claude actually authored
+            const addedLinesStart = hunk.newStart + hunk.oldLines;
+            const addedLinesEnd = addedLinesStart + linesAdded - 1;
+            
+            for (let lineNum = addedLinesStart; lineNum <= addedLinesEnd; lineNum++) {
+              if (lineNum > 0) { // Ensure valid line numbers
+                allLines.add(lineNum);
+              }
+            }
           }
+          // If linesAdded <= 0, this was a deletion or replacement - no new lines to track
         }
         
         metadata.lines = Array.from(allLines).sort((a, b) => a - b);
         await log(`MultiEdit detected using structuredPatch: lines ${metadata.lines.join(', ')}`);
       } else {
         // Fallback to old method if structuredPatch not available
+        // Note: This fallback is less accurate and may cause duplicate tracking
         const edits = multiEditInput.edits || [];
         const allLines = new Set<number>();
         
@@ -153,16 +187,33 @@ export async function trackChanges(): Promise<void> {
           const content = await readFile(filePath, 'utf-8');
           
           for (const edit of edits) {
+            const oldString = edit.old_string || '';
             const newString = edit.new_string || '';
-            if (newString) {
-              const newLines = newString.split('\n').length;
-              // Simple heuristic for line detection
-              const linesBeforeChange = content.substring(0, content.indexOf(newString)).split('\n').length - 1;
-              const startLine = linesBeforeChange + 1;
-              const endLine = startLine + newLines - 1;
-              
-              for (let i = startLine; i <= endLine; i++) {
-                allLines.add(i);
+            
+            if (oldString && newString) {
+              const newStringIndex = content.indexOf(newString);
+              if (newStringIndex !== -1) {
+                // Calculate lines added (net new lines)
+                const oldLines = oldString.split('\n').length;
+                const newLines = newString.split('\n').length;
+                const linesAdded = Math.max(0, newLines - oldLines);
+                
+                if (linesAdded > 0) {
+                  // Find the starting line of the edit
+                  const contentBeforeChange = content.substring(0, newStringIndex);
+                  const linesBeforeChange = contentBeforeChange.split('\n').length - 1;
+                  const editStartLine = linesBeforeChange + 1;
+                  
+                  // The added lines are at the end of the replacement
+                  const addedLinesStart = editStartLine + oldLines;
+                  const addedLinesEnd = addedLinesStart + linesAdded - 1;
+                  
+                  for (let i = addedLinesStart; i <= addedLinesEnd; i++) {
+                    if (i > 0 && isFinite(i)) { // Ensure valid line numbers
+                      allLines.add(i);
+                    }
+                  }
+                }
               }
             }
           }
@@ -196,48 +247,8 @@ export async function trackChanges(): Promise<void> {
     await writeFile(metadataFile, JSON.stringify(existingData, null, 2));
     await log(`Traditional metadata saved to: ${metadataFile}`);
     
-    // ALSO store hash-based tracking data
-    try {
-      const hashStore = new ContentHashStore(wasHereDir);
-      await hashStore.load();
-      
-      // Read current file content
-      const fileContent = await readFile(filePath, 'utf-8');
-      
-      // Create hash-based tracking data
-      const hashTrackingData = await createHashedTrackingData(
-        toolName,
-        relPath,
-        metadata.lines,
-        fileContent,
-        hashStore
-      );
-      
-      // Save the hash store
-      await hashStore.save();
-      
-      // Save hash-based tracking data
-      const hashMetadataFile = join(wasHereDir, `${relPath.replace(/[/\\]/g, '_')}.hash.json`);
-      let existingHashData: ClaudeTrackingDataHash[] = [];
-      try {
-        const existing = await readFile(hashMetadataFile, 'utf-8');
-        existingHashData = JSON.parse(existing);
-      } catch {
-        existingHashData = [];
-      }
-      
-      existingHashData.push(hashTrackingData);
-      await writeFile(hashMetadataFile, JSON.stringify(existingHashData, null, 2));
-      await log(`Hash-based metadata saved to: ${hashMetadataFile}`);
-      await log(`Hash tracking data: ${JSON.stringify(hashTrackingData, null, 2)}`);
-      
-      const stats = hashStore.getStats();
-      await log(`Content hash store stats: ${JSON.stringify(stats)}`);
-      
-    } catch (hashError) {
-      await log(`Error creating hash-based tracking: ${hashError}`);
-      // Continue with traditional approach if hash-based fails
-    }
+    // Hash-based tracking removed to eliminate duplicate tracking systems
+    await log(`Tracking completed for ${relPath}: ${metadata.lines.length} lines tracked`);
     
   } catch (error) {
     await log(`Error in trackChanges: ${error}`);
