@@ -1,4 +1,5 @@
 import { readFile } from 'fs/promises';
+import { resolve } from 'path';
 import { CommitAuthorshipData, LineRange } from '../types.ts';
 import { execGitCommand, getGitNote } from '../utils/git.ts';
 import { fileExists } from '../utils/files.ts';
@@ -25,6 +26,25 @@ export interface CommitInfo {
   hash: string;
   timestamp: number;
   authorshipData?: CommitAuthorshipData;
+}
+
+/**
+ * Normalizes a file path to be relative to the git repository root
+ */
+function normalizeFilePath(filePath: string): string {
+  // If it's already relative (doesn't start with /), return as-is
+  if (!filePath.startsWith('/')) {
+    return filePath;
+  }
+  
+  // Convert absolute path to relative by finding the git root
+  const gitRoot = process.cwd(); // Assume we're running from git root
+  if (filePath.startsWith(gitRoot)) {
+    return filePath.substring(gitRoot.length + 1); // +1 to remove the leading /
+  }
+  
+  // If we can't make it relative, return as-is (shouldn't happen in normal usage)
+  return filePath;
 }
 
 /**
@@ -137,7 +157,7 @@ function parseCommitNote(noteText: string): CommitAuthorshipData | null {
     }
     
     files.push({
-      filePath,
+      filePath: normalizeFilePath(filePath),
       aiAuthoredRanges: ranges
     });
   }
@@ -231,6 +251,8 @@ export async function rollupAuthorship(since?: string): Promise<RollupResult> {
   
   // Track which files have had non-authorship commits since their last authorship commit
   const filesWithInterveningChanges = new Map<string, boolean>();
+  // Track which files have ever had authorship data 
+  const filesWithAuthorshipHistory = new Set<string>();
   
   // Process commits chronologically and track file evolution
   for (let commitIndex = 0; commitIndex < commits.length; commitIndex++) {
@@ -287,6 +309,9 @@ export async function rollupAuthorship(since?: string): Promise<RollupResult> {
         if (fileAuthorship) {
           const aiLines = expandLineRanges(fileAuthorship.aiAuthoredRanges);
           
+          // Mark this file as having authorship history
+          filesWithAuthorshipHistory.add(filePath);
+          
           // Only clear existing authorship if there were intervening changes
           // that could have invalidated the previous authorship
           if (filesWithInterveningChanges.get(filePath)) {
@@ -307,13 +332,17 @@ export async function rollupAuthorship(since?: string): Promise<RollupResult> {
           }
         } else {
           // File was modified but no authorship data for this file in this commit
-          // Mark that this file has intervening changes
-          filesWithInterveningChanges.set(filePath, true);
+          // Only mark as intervening change if this file has had authorship before
+          if (filesWithAuthorshipHistory.has(filePath)) {
+            filesWithInterveningChanges.set(filePath, true);
+          }
         }
       } else {
         // File was modified but no authorship data at all for this commit
-        // Mark that this file has intervening changes that could invalidate authorship
-        filesWithInterveningChanges.set(filePath, true);
+        // Only mark as intervening change if this file has had authorship before
+        if (filesWithAuthorshipHistory.has(filePath)) {
+          filesWithInterveningChanges.set(filePath, true);
+        }
       }
     }
   }
