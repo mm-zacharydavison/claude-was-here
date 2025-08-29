@@ -23,7 +23,11 @@ jobs:
           
       - name: Fetch git notes
         run: |
-          git fetch origin refs/notes/claude-was-here:refs/notes/claude-was-here || echo "No claude-was-here notes found"
+          # Fetch default git notes if they exist
+          git fetch origin refs/notes/commits:refs/notes/commits 2>/dev/null || echo "No git notes found yet"
+          # Show what notes we have
+          echo "Checking for existing notes..."
+          git log --oneline --notes=commits -n 5 || true
           
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2

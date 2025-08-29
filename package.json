@@ -1,6 +1,6 @@
 {
   "name": "@zdavison/claude-was-here",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Track lines changed by Claude Code using git hooks and git notes",
   "main": "dist/cli.js",
   "bin": {

@@ -206,7 +206,7 @@ export async function rollupAuthorship(since?: string): Promise<RollupResult> {
   
   // Load authorship data for all commits
   for (const commit of commits) {
-    const noteText = await getGitNote(commit.hash, 'claude-was-here');
+    const noteText = await getGitNote(commit.hash);
     if (noteText) {
       commit.authorshipData = parseCommitNote(noteText) || undefined;
     }

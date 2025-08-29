@@ -53,7 +53,7 @@ export async function githubSynchronizePR(baseCommit: string, headCommit: string
     
     // Process each commit's notes
     for (const commitHash of commits) {
-      const notesResult = await execGitCommand(['notes', '--ref', 'claude-was-here', 'show', commitHash]);
+      const notesResult = await execGitCommand(['notes', 'show', commitHash]);
       if (notesResult.code === 0) {
         const noteLines = notesResult.stdout.split('\n');
         
@@ -123,13 +123,13 @@ export async function githubSquashPR(dataFilePath: string, baseCommit: string, m
     await writeFile(noteFilePath, noteContent);
     
     // Apply the note to the merge commit
-    const addNoteResult = await execGitCommand(['notes', '--ref', 'claude-was-here', 'add', '-F', noteFilePath, mergeCommit]);
+    const addNoteResult = await execGitCommand(['notes', 'add', '-F', noteFilePath, mergeCommit]);
     if (addNoteResult.code !== 0) {
       throw new Error(`Failed to add note to commit: ${addNoteResult.stderr}`);
     }
     
     // Push the notes to remote
-    const pushResult = await execGitCommand(['push', 'origin', 'refs/notes/claude-was-here']);
+    const pushResult = await execGitCommand(['push', 'origin', 'refs/notes/commits']);
     if (pushResult.code !== 0) {
       logger.warn('⚠️  Warning: Could not push git notes to remote:', pushResult.stderr);
     }

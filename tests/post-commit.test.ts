@@ -49,7 +49,7 @@ describe('claude-was-here post-commit', () => {
 
   async function getGitNote(commitHash: string): Promise<string | null> {
     try {
-      const result = await execCommand('git', ['notes', '--ref', 'claude-was-here', 'show', commitHash], testDir);
+      const result = await execCommand('git', ['notes', 'show', commitHash], testDir);
       return result.code === 0 ? result.stdout : null;
     } catch {
       return null;

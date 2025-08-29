@@ -32,21 +32,24 @@ export async function getCurrentCommitHash(): Promise<string> {
   return await execGitCommand(['rev-parse', 'HEAD']);
 }
 
-export async function addGitNote(commitHash: string, note: string, notesRef: string = 'claude-was-here'): Promise<void> {
-  await execGitCommand(['notes', '--ref', notesRef, 'add', '-m', note, commitHash]);
+export async function addGitNote(commitHash: string, note: string): Promise<void> {
+  // Using default git notes (refs/notes/commits) for better visibility
+  await execGitCommand(['notes', 'add', '-m', note, commitHash]);
 }
 
-export async function getGitNote(commitHash: string, notesRef: string = 'claude-was-here'): Promise<string | null> {
+export async function getGitNote(commitHash: string): Promise<string | null> {
   try {
-    return await execGitCommand(['notes', '--ref', notesRef, 'show', commitHash]);
+    // Using default git notes (refs/notes/commits)
+    return await execGitCommand(['notes', 'show', commitHash]);
   } catch {
     return null;
   }
 }
 
-export async function removeGitNote(commitHash: string, notesRef: string = 'claude-was-here'): Promise<void> {
+export async function removeGitNote(commitHash: string): Promise<void> {
   try {
-    await execGitCommand(['notes', '--ref', notesRef, 'remove', commitHash]);
+    // Using default git notes (refs/notes/commits)
+    await execGitCommand(['notes', 'remove', commitHash]);
   } catch {
     // Note doesn't exist, ignore
   }
