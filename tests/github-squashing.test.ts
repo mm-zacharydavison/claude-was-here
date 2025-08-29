@@ -37,27 +37,27 @@ describe('claude-was-here install-github-actions', () => {
     // Run the install command
     await installGitHubActions();
     
-    // Check that the workflow files were created
+    // Check that the workflow files and scripts were created
     expect(existsSync(join(testDir, '.github', 'workflows', 'preserve-claude-notes-pre.yml'))).toBe(true);
     expect(existsSync(join(testDir, '.github', 'workflows', 'preserve-claude-notes-post.yml'))).toBe(true);
-    
-    // Verify no scripts directory is created since we use bunx
-    expect(existsSync(join(testDir, '.github', 'scripts'))).toBe(false);
+    expect(existsSync(join(testDir, '.github', 'scripts', 'github-synchronize-pr.js'))).toBe(true);
+    expect(existsSync(join(testDir, '.github', 'scripts', 'github-squash-pr.js'))).toBe(true);
   });
 
-  test('WILL not require claude-was-here to be installed (workflows use bunx for runtime installation)', async () => {
+  test('WILL not require claude-was-here to be installed (workflows use bundled scripts)', async () => {
     await installGitHubActions();
     
-    // Check that the workflows use bunx to run claude-was-here commands
+    // Check that the workflows use bundled scripts
     const preWorkflowContent = await readFile(join(testDir, '.github', 'workflows', 'preserve-claude-notes-pre.yml'), 'utf-8');
     const postWorkflowContent = await readFile(join(testDir, '.github', 'workflows', 'preserve-claude-notes-post.yml'), 'utf-8');
     
-    // Verify workflows use bunx to install and run claude-was-here commands
-    expect(preWorkflowContent).toContain('bunx @zdavison/claude-was-here@latest github-synchronize-pr');
-    expect(postWorkflowContent).toContain('bunx @zdavison/claude-was-here@latest github-squash-pr');
+    // Verify workflows use bundled scripts
+    expect(preWorkflowContent).toContain('bun run .github/scripts/github-synchronize-pr.js');
+    expect(postWorkflowContent).toContain('bun run .github/scripts/github-squash-pr.js');
     
-    // Verify no local scripts are needed
-    expect(existsSync(join(testDir, '.github', 'scripts'))).toBe(false);
+    // Verify local scripts were created
+    expect(existsSync(join(testDir, '.github', 'scripts', 'github-synchronize-pr.js'))).toBe(true);
+    expect(existsSync(join(testDir, '.github', 'scripts', 'github-squash-pr.js'))).toBe(true);
   });
 });
 
