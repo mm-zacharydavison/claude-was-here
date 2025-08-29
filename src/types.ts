@@ -42,4 +42,28 @@ export interface ClaudePostToolUseHookData {
   tool_response?: ClaudeEditResponse | ClaudeMultiEditResponse;
 }
 
-// TODO: Define new tracking data structures
+// Hook data structures
+export interface ClaudeHookData {
+  session_id: string;
+  transcript_path: string;
+  cwd: string;
+  hook_event_name: string;
+  tool_name: string;
+  tool_input: any;
+  tool_response: any;
+}
+
+// Tracking data structures
+export interface FileChangeRecord {
+  filePath: string;
+  toolName: string;
+  sessionId: string;
+  timestamp: number;
+  structuredPatch: StructuredPatchHunk[];
+  originalContent?: string;
+  newContent?: string;
+}
+
+export interface WorkingTrackingData {
+  records: FileChangeRecord[];
+}
