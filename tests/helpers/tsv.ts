@@ -51,8 +51,14 @@ export function parseTsvToGitNoteData(tsv: string): GitNoteData {
     if (!filePath || !rangesStr) continue;
     
     const ranges = rangesStr.split(',').map(range => {
-      const [start, end] = range.split('-').map(n => parseInt(n, 10));
-      return [start, end] as [number, number];
+      const parts = range.split('-').map(n => parseInt(n, 10));
+      if (parts.length === 1) {
+        // Single line: "5" becomes [5, 5]
+        return [parts[0], parts[0]] as [number, number];
+      } else {
+        // Range: "5-10" becomes [5, 10]
+        return [parts[0], parts[1]] as [number, number];
+      }
     });
     
     noteData.claude_was_here.files[filePath] = { ranges };
