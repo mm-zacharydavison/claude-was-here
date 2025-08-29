@@ -8,6 +8,8 @@ jobs:
   attach-claude-notes:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    container:
+      image: oven/bun:latest
     permissions:
       contents: write
     
@@ -36,12 +38,6 @@ jobs:
             echo "No Claude notes artifact found"
           fi
           
-      - name: Setup Node.js
-        if: steps.check-notes.outputs.notes_exist == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          
       - name: Apply consolidated Claude notes to squashed commit
         if: steps.check-notes.outputs.notes_exist == 'true'
         run: |
@@ -54,4 +50,4 @@ jobs:
           echo "Base commit: $BASE_COMMIT"
           
           # Use claude-was-here to apply consolidated notes to the squashed commit
-          npx @zdavison/claude-was-here@latest github-squash-pr --data-file "./artifacts/claude-notes-data.json" --base "$BASE_COMMIT" --merge "$MERGE_COMMIT"
+          bunx @zdavison/claude-was-here@latest github-squash-pr --data-file "./artifacts/claude-notes-data.json" --base "$BASE_COMMIT" --merge "$MERGE_COMMIT"

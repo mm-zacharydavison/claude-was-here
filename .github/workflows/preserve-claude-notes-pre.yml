@@ -7,6 +7,8 @@ on:
 jobs:
   collect-claude-notes:
     runs-on: ubuntu-latest
+    container:
+      image: oven/bun:latest
     permissions:
       contents: read
     
@@ -15,11 +17,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to access all commits
-          
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
           
       - name: Get base and head commits
         id: commits
@@ -33,7 +30,7 @@ jobs:
           
       - name: Collect and consolidate Claude notes
         run: |
-          npx @zdavison/claude-was-here@latest github-synchronize-pr --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"
+          bunx @zdavison/claude-was-here@latest github-synchronize-pr --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"
           
       - name: Upload Claude notes data as artifact
         if: hashFiles('claude-notes-data.json') != ''

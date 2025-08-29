@@ -12,6 +12,8 @@ on:
 jobs:
   collect-claude-notes:
     runs-on: ubuntu-latest
+    container:
+      image: oven/bun:latest
     permissions:
       contents: read
     
@@ -20,11 +22,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to access all commits
-          
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
           
       - name: Get base and head commits
         id: commits
@@ -38,7 +35,7 @@ jobs:
           
       - name: Collect and consolidate Claude notes
         run: |
-          npx @zdavison/claude-was-here@latest github-synchronize-pr --base "\${{ steps.commits.outputs.base_commit }}" --head "\${{ steps.commits.outputs.head_commit }}"
+          bunx @zdavison/claude-was-here@latest github-synchronize-pr --base "\${{ steps.commits.outputs.base_commit }}" --head "\${{ steps.commits.outputs.head_commit }}"
           
       - name: Upload Claude notes data as artifact
         if: hashFiles('claude-notes-data.json') != ''
@@ -58,6 +55,8 @@ jobs:
   attach-claude-notes:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    container:
+      image: oven/bun:latest
     permissions:
       contents: write
     
@@ -86,12 +85,6 @@ jobs:
             echo "No Claude notes artifact found"
           fi
           
-      - name: Setup Node.js
-        if: steps.check-notes.outputs.notes_exist == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          
       - name: Apply consolidated Claude notes to squashed commit
         if: steps.check-notes.outputs.notes_exist == 'true'
         run: |
@@ -104,7 +97,7 @@ jobs:
           echo "Base commit: \$BASE_COMMIT"
           
           # Use claude-was-here to apply consolidated notes to the squashed commit
-          npx @zdavison/claude-was-here@latest github-squash-pr --data-file "./artifacts/claude-notes-data.json" --base "\$BASE_COMMIT" --merge "\$MERGE_COMMIT"`;
+          bunx @zdavison/claude-was-here@latest github-squash-pr --data-file "./artifacts/claude-notes-data.json" --base "\$BASE_COMMIT" --merge "\$MERGE_COMMIT"`;
 
 export async function installGitHubActions(): Promise<void> {
   const workflowsDir = join(process.cwd(), '.github', 'workflows');
@@ -135,13 +128,13 @@ export async function installGitHubActions(): Promise<void> {
   logger.log('📁 .github/workflows/preserve-claude-notes-post.yml - Attaches consolidated notes to squashed commits');
   logger.log('\n📝 These workflows will:');
   logger.log('   • Preserve Claude Code tracking data when PRs are squashed');
-  logger.log('   • Use npx to run claude-was-here commands directly');
+  logger.log('   • Use bunx to run claude-was-here commands directly');
   logger.log('   • Automatically run on pull request events');
   logger.log('   • Ensure accurate attribution in the final commit notes');
   logger.log('\n💡 The workflows require GitHub repository permissions:');
   logger.log('   • contents: read/write - to access and modify git notes');
   logger.log('   • pull-requests: read - to access PR information');
-  logger.log('\n🚀 The workflows use npx to run claude-was-here commands:');
+  logger.log('\n🚀 The workflows use bunx to run claude-was-here commands:');
   logger.log('   • github-synchronize-pr - Collects and consolidates notes from PR commits');
   logger.log('   • github-squash-pr - Applies consolidated notes to squashed merge commits');
 }
