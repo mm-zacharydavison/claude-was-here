@@ -36,6 +36,12 @@ jobs:
             echo "No Claude notes artifact found"
           fi
           
+      - name: Setup Node.js
+        if: steps.check-notes.outputs.notes_exist == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
       - name: Process and attach Claude notes to merge commit
         if: steps.check-notes.outputs.notes_exist == 'true'
         run: |
@@ -47,8 +53,8 @@ jobs:
           base_commit=$(git merge-base HEAD origin/${{ github.event.pull_request.base.ref }})
           echo "Base commit: $base_commit"
           
-          # Run the Claude lines analysis using the installed script
-          python3 .github/scripts/analyze-claude-lines.py ./artifacts/claude_commits_data.txt "$base_commit" "$latest_commit" > final_claude_note.txt
+          # Run the Claude lines analysis using the bundled JavaScript script
+          node .github/scripts/analyze-claude-lines.js ./artifacts/claude_commits_data.txt "$base_commit" "$latest_commit" > final_claude_note.txt
           
           # Add the consolidated note to the merge commit
           git notes add -F final_claude_note.txt "$latest_commit"
