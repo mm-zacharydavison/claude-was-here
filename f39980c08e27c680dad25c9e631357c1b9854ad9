@@ -1,0 +1,8 @@
+claude-was-here
+version: 1.2
+src/commands/post-commit.ts:    1-3
+src/commands/pre-commit.ts:     1-3
+src/commands/stats.ts:          1-8
+src/commands/track-changes.ts:  1-3
+src/lib/content-hash.ts:        1-1
+src/types.ts:                   1-45
