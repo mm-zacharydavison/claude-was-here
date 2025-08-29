@@ -23,13 +23,7 @@ export async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-export function getClaudeWasHereDir(): string {
-  return join(process.cwd(), '.claude', 'was-here');
-}
-
-export function getClaudeCacheDir(): string {
-  return join(process.cwd(), '.claude', 'was-here', 'cache');
-}
+// TODO: Define new tracking directories
 
 export function getClaudeHooksDir(): string {
   return join(process.cwd(), '.claude', 'hooks');

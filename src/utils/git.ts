@@ -28,20 +28,4 @@ export async function checkGitRepo(): Promise<boolean> {
   }
 }
 
-export async function getStagedFiles(): Promise<string[]> {
-  try {
-    const result = await execGitCommand(['diff', '--cached', '--name-only']);
-    return result.split('\n').filter(f => f.trim());
-  } catch {
-    return [];
-  }
-}
-
-export async function getCurrentCommitHash(): Promise<string> {
-  const result = await execGitCommand(['rev-parse', 'HEAD']);
-  return result;
-}
-
-export async function addGitNote(commitHash: string, noteContent: string): Promise<void> {
-  await execGitCommand(['notes', 'add', '-m', noteContent, commitHash]);
-}
+// TODO: Implement new git integration functions
