@@ -18,11 +18,6 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.ref }}  # Checkout the target branch
           
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-          
       - name: Download Claude notes artifact
         uses: actions/download-artifact@v4
         with:
@@ -40,6 +35,12 @@ jobs:
             echo "notes_exist=false" >> $GITHUB_OUTPUT
             echo "No Claude notes artifact found"
           fi
+          
+      - name: Setup Bun
+        if: steps.check-notes.outputs.notes_exist == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
           
       - name: Apply consolidated Claude notes to squashed commit
         if: steps.check-notes.outputs.notes_exist == 'true'
