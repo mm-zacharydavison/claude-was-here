@@ -8,12 +8,10 @@ import { join } from 'path';
 async function promptForConfirmation(message: string): Promise<boolean> {
   return new Promise((resolve) => {
     process.stdout.write(message + ' (y/N): ');
-    process.stdin.setRawMode(true);
     process.stdin.resume();
     
     const onData = (buffer: Buffer) => {
       const input = buffer.toString().toLowerCase().trim();
-      process.stdin.setRawMode(false);
       process.stdin.pause();
       process.stdin.off('data', onData);
       console.log(); // New line after input
