@@ -41,7 +41,7 @@ jobs:
           
       - name: Collect and consolidate Claude notes
         run: |
-          bunx @zdavison/claude-was-here@latest github-synchronize-pr --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"
+          bun run .github/scripts/github-synchronize-pr.js --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"
           
       - name: Upload Claude notes data as artifact
         if: hashFiles('claude-notes-data.json') != ''

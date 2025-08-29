@@ -53,4 +53,4 @@ jobs:
           echo "Base commit: $BASE_COMMIT"
           
           # Use claude-was-here to apply consolidated notes to the squashed commit
-          bunx @zdavison/claude-was-here@latest github-squash-pr --data-file "./artifacts/claude-notes-data.json" --base "$BASE_COMMIT" --merge "$MERGE_COMMIT"
+          bun run .github/scripts/github-squash-pr.js --data-file "./artifacts/claude-notes-data.json" --base "$BASE_COMMIT" --merge "$MERGE_COMMIT"
