@@ -41,20 +41,20 @@ describe('claude-was-here install-github-actions', () => {
     expect(existsSync(join(testDir, '.github', 'workflows', 'preserve-claude-notes-pre.yml'))).toBe(true);
     expect(existsSync(join(testDir, '.github', 'workflows', 'preserve-claude-notes-post.yml'))).toBe(true);
     
-    // Verify no scripts directory is created since we use npx
+    // Verify no scripts directory is created since we use bunx
     expect(existsSync(join(testDir, '.github', 'scripts'))).toBe(false);
   });
 
-  test('WILL not require claude-was-here to be installed (workflows use npx for runtime installation)', async () => {
+  test('WILL not require claude-was-here to be installed (workflows use bunx for runtime installation)', async () => {
     await installGitHubActions();
     
-    // Check that the workflows use npx to run claude-was-here commands
+    // Check that the workflows use bunx to run claude-was-here commands
     const preWorkflowContent = await readFile(join(testDir, '.github', 'workflows', 'preserve-claude-notes-pre.yml'), 'utf-8');
     const postWorkflowContent = await readFile(join(testDir, '.github', 'workflows', 'preserve-claude-notes-post.yml'), 'utf-8');
     
-    // Verify workflows use npx to install and run claude-was-here commands
-    expect(preWorkflowContent).toContain('npx @zdavison/claude-was-here@latest github-synchronize-pr');
-    expect(postWorkflowContent).toContain('npx @zdavison/claude-was-here@latest github-squash-pr');
+    // Verify workflows use bunx to install and run claude-was-here commands
+    expect(preWorkflowContent).toContain('bunx @zdavison/claude-was-here@latest github-synchronize-pr');
+    expect(postWorkflowContent).toContain('bunx @zdavison/claude-was-here@latest github-squash-pr');
     
     // Verify no local scripts are needed
     expect(existsSync(join(testDir, '.github', 'scripts'))).toBe(false);
