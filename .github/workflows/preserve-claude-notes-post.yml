@@ -1,0 +1,57 @@
+name: claude-was-here Preserve git Notes (Post-merge)
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  attach-claude-notes:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.ref }}  # Checkout the target branch
+          
+      - name: Download Claude notes artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: claude-notes-pr-${{ github.event.number }}
+          path: ./artifacts/
+        continue-on-error: true
+        
+      - name: Check if Claude notes exist
+        id: check-notes
+        run: |
+          if [ -f "./artifacts/claude-notes-data.json" ]; then
+            echo "notes_exist=true" >> $GITHUB_OUTPUT
+            echo "Found Claude notes artifact"
+          else
+            echo "notes_exist=false" >> $GITHUB_OUTPUT
+            echo "No Claude notes artifact found"
+          fi
+          
+      - name: Setup Node.js
+        if: steps.check-notes.outputs.notes_exist == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Apply consolidated Claude notes to squashed commit
+        if: steps.check-notes.outputs.notes_exist == 'true'
+        run: |
+          # Get the latest commit (should be the merge/squash commit)
+          MERGE_COMMIT=$(git rev-parse HEAD)
+          echo "Merge commit: $MERGE_COMMIT"
+          
+          # Get the base commit to compare against
+          BASE_COMMIT=$(git merge-base HEAD origin/${{ github.event.pull_request.base.ref }})
+          echo "Base commit: $BASE_COMMIT"
+          
+          # Use claude-was-here to apply consolidated notes to the squashed commit
+          npx @zdavison/claude-was-here@latest github-squash-pr --data-file "./artifacts/claude-notes-data.json" --base "$BASE_COMMIT" --merge "$MERGE_COMMIT"

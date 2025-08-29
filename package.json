@@ -1,6 +1,6 @@
 {
   "name": "@zdavison/claude-was-here",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Track lines changed by Claude Code using git hooks and git notes",
   "main": "dist/cli.js",
   "bin": {
@@ -13,11 +13,31 @@
     "init": "bun run src/cli.ts init",
     "type-check": "tsc --noEmit",
     "test": "bun test tests/",
-    "test:watch": "bun test tests/ --watch"
+    "test:watch": "bun test tests/ --watch",
+    "prepublishOnly": "bun run build && bun run type-check && bun run test"
   },
   "keywords": ["claude", "git", "hooks", "tracking", "ai"],
   "author": "",
   "license": "MIT",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zdavison/claude-was-here.git"
+  },
+  "homepage": "https://github.com/zdavison/claude-was-here#readme",
+  "bugs": {
+    "url": "https://github.com/zdavison/claude-was-here/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^20.0.0",

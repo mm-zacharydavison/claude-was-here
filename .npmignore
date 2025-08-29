@@ -1,0 +1,20 @@
+# Development files
+src/
+tests/
+tsconfig.json
+bun.lockb
+.claude/
+.git/
+
+# Built binary (users should install via npm, not use the binary)
+claude-was-here
+
+# Development and test artifacts
+*.test.*
+test-*
+*.log
+.DS_Store
+node_modules/
+
+# GitHub workflows (not needed for npm package)
+.github/

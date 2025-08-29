@@ -1,0 +1,44 @@
+name: claude-was-here Preserve git Notes (Pre-merge)
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  collect-claude-notes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to access all commits
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Get base and head commits
+        id: commits
+        run: |
+          BASE_COMMIT=$(git merge-base HEAD origin/${{ github.base_ref }})
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          echo "base_commit=$BASE_COMMIT" >> $GITHUB_OUTPUT
+          echo "head_commit=$HEAD_COMMIT" >> $GITHUB_OUTPUT
+          echo "Base commit: $BASE_COMMIT"
+          echo "Head commit: $HEAD_COMMIT"
+          
+      - name: Collect and consolidate Claude notes
+        run: |
+          npx @zdavison/claude-was-here@latest github-synchronize-pr --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"
+          
+      - name: Upload Claude notes data as artifact
+        if: hashFiles('claude-notes-data.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-notes-pr-${{ github.event.number }}
+          path: claude-notes-data.json
+          retention-days: 30
