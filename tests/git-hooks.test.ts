@@ -156,7 +156,7 @@ line 6`);
     
     const noteData = parseTsvToGitNoteData(notesResult.stdout);
     expect(noteData.claude_was_here).toBeDefined();
-    expect(noteData.claude_was_here.version).toBe('1.0');
+    expect(noteData.claude_was_here.version).toBe('1.1');
     expect(noteData.claude_was_here.files).toBeDefined();
     
     // Verify file1.js ranges

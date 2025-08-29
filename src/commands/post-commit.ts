@@ -2,6 +2,7 @@ import { readFile, unlink, readdir, rmdir } from 'fs/promises';
 import { join } from 'path';
 import { getClaudeWasHereDir } from '../utils/files.ts';
 import { getCurrentCommitHash, addGitNote } from '../utils/git.ts';
+import { ContentHashStore, type ClaudeTrackingDataHash } from '../lib/content-hash.ts';
 import type { CommitSummary, LineRange } from '../types.ts';
 
 export async function postCommitHook(): Promise<void> {
@@ -21,25 +22,8 @@ export async function postCommitHook(): Promise<void> {
       return;
     }
     
-    // Create aligned key-value format with header
-    const lines: string[] = ['claude-was-here', 'version: 1.0'];
-    
-    // Calculate the maximum filename length for alignment
-    const filePaths = Object.keys(metadata.files);
-    const maxLength = Math.max(...filePaths.map(path => path.length));
-    
-    // Each subsequent line: filename padded with colon and ranges
-    for (const [filePath, fileData] of Object.entries(metadata.files)) {
-      const lineNumbers = fileData.claude_lines;
-      const ranges = convertLinesToRanges(lineNumbers);
-      
-      // Format: filename: (padded to align) range1,range2,range3...
-      const rangeStr = ranges.map(([start, end]) => `${start}-${end}`).join(',');
-      const paddedPath = `${filePath}:`.padEnd(maxLength + 2); // +2 for ": "
-      lines.push(`${paddedPath} ${rangeStr}`);
-    }
-    
-    const noteContent = lines.join('\n');
+    // Create enhanced git note with both traditional and hash-based info
+    const noteContent = await createEnhancedGitNote(metadata);
     
     // Add note to git
     await addGitNote(commitHash, noteContent);
@@ -52,6 +36,72 @@ export async function postCommitHook(): Promise<void> {
     console.error('Post-commit hook error:', error);
     process.exit(0); // Don't fail on hook errors
   }
+}
+
+async function createEnhancedGitNote(metadata: CommitSummary): Promise<string> {
+  const lines: string[] = ['claude-was-here', 'version: 1.1']; // Bump version for hash support
+  
+  // Calculate the maximum filename length for alignment
+  const filePaths = Object.keys(metadata.files);
+  if (filePaths.length === 0) {
+    return lines.join('\n');
+  }
+  
+  const maxLength = Math.max(...filePaths.map(path => path.length));
+  
+  // Try to load hash-based data for enhanced notes
+  const wasHereDir = getClaudeWasHereDir();
+  const hashStore = new ContentHashStore(wasHereDir);
+  const contentHashes = new Set<string>();
+  
+  try {
+    await hashStore.load();
+  } catch {
+    // Hash store not available, use traditional format only
+  }
+  
+  // Traditional format with potential hash enhancements
+  for (const [filePath, fileData] of Object.entries(metadata.files)) {
+    const lineNumbers = fileData.claude_lines;
+    const ranges = convertLinesToRanges(lineNumbers);
+    
+    // Traditional range format
+    const rangeStr = ranges.map(([start, end]) => `${start}-${end}`).join(',');
+    const paddedPath = `${filePath}:`.padEnd(maxLength + 2);
+    
+    // Try to get hash-based data for this file
+    let hashInfo = '';
+    try {
+      const hashDataFile = join(wasHereDir, `${filePath.replace(/[/\\]/g, '_')}.hash.json`);
+      const hashDataContent = await readFile(hashDataFile, 'utf-8');
+      const hashTrackingData: ClaudeTrackingDataHash[] = JSON.parse(hashDataContent);
+      
+      // Collect unique content hashes for this commit
+      for (const trackingEntry of hashTrackingData) {
+        for (const change of trackingEntry.changes) {
+          contentHashes.add(change.signature); // Use signature for compactness
+        }
+      }
+      
+      // Add hash signatures as metadata (optional enhancement)
+      if (contentHashes.size > 0) {
+        const hashSigs = Array.from(contentHashes).slice(0, 5).join(','); // Limit to 5 for space
+        hashInfo = ` #${hashSigs}`;
+      }
+    } catch {
+      // No hash data for this file
+    }
+    
+    lines.push(`${paddedPath} ${rangeStr}${hashInfo}`);
+  }
+  
+  // Add content hash index at the end if we have hashes
+  if (contentHashes.size > 0) {
+    lines.push(''); // Empty line separator
+    lines.push(`content-signatures: ${Array.from(contentHashes).join(',')}`);
+  }
+  
+  return lines.join('\n');
 }
 
 async function cleanupTempFiles(metadataFile: string): Promise<void> {

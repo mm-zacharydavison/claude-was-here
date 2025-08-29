@@ -1,11 +1,14 @@
 /**
  * Shared logic for analyzing Claude contributions across commits and mapping them to final diff lines.
  * This module is used by both tests and GitHub Actions to ensure consistent behavior.
+ * 
+ * Enhanced with hash-based content tracking for more accurate line attribution.
  */
 
 import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { ContentHashStore, type ClaudeTrackingDataHash } from './content-hash.ts';
 
 export interface ClaudeContribution {
   commitHash: string;
@@ -122,12 +125,25 @@ export const consolidateClaudeContributions = async (
     }
   }
   
-  // Filter out files that don't exist in the final version
+  // Filter out files that don't exist and validate line numbers are within bounds
   const existingFiles: ClaudeLineMapping = {};
   for (const [filepath, lineSet] of Object.entries(finalClaudeLines)) {
     try {
-      await readFile(join(testDir, filepath), 'utf-8');
-      existingFiles[filepath] = lineSet;
+      const fileContent = await readFile(join(testDir, filepath), 'utf-8');
+      const totalLines = fileContent.split('\n').length;
+      
+      // Filter out line numbers that exceed the file's actual line count
+      const validLines = new Set<number>();
+      for (const lineNum of lineSet) {
+        if (lineNum >= 1 && lineNum <= totalLines) {
+          validLines.add(lineNum);
+        }
+      }
+      
+      // Only include the file if it has valid Claude lines
+      if (validLines.size > 0) {
+        existingFiles[filepath] = validLines;
+      }
     } catch (error) {
       // File doesn't exist in final version, skip it
       continue;
@@ -175,7 +191,7 @@ export const convertLinesToRanges = (lines: number[]): string => {
  * Generate a claude-was-here note in the standard format
  */
 export const generateClaudeNote = (claudeLineMapping: ClaudeLineMapping): string => {
-  let output = 'claude-was-here\nversion: 1.0\n';
+  let output = 'claude-was-here\nversion: 1.1\n';
   
   const filesWithLines = Object.keys(claudeLineMapping).filter(
     filepath => claudeLineMapping[filepath].size > 0
@@ -198,9 +214,105 @@ export const generateClaudeNote = (claudeLineMapping: ClaudeLineMapping): string
 };
 
 /**
- * Main analysis function that combines all steps
+ * Hash-based consolidation that matches content rather than line numbers
+ */
+export const consolidateClaudeContributionsWithHashes = async (
+  testDir: string,
+  contributions: ClaudeContribution[]
+): Promise<ClaudeLineMapping> => {
+  const finalClaudeLines: ClaudeLineMapping = {};
+  
+  // Try to load hash-based tracking data for better accuracy
+  const hashStore = new ContentHashStore(join(testDir, '.claude/was-here'));
+  try {
+    await hashStore.load();
+  } catch {
+    // Fall back to traditional approach if hash store not available
+    return await consolidateClaudeContributions(testDir, contributions);
+  }
+  
+  // Group contributions by file
+  const fileContributions = new Map<string, ClaudeContribution[]>();
+  for (const contribution of contributions) {
+    if (!fileContributions.has(contribution.filepath)) {
+      fileContributions.set(contribution.filepath, []);
+    }
+    fileContributions.get(contribution.filepath)!.push(contribution);
+  }
+  
+  // Analyze each file using hash-based matching
+  for (const [filepath, contribs] of fileContributions) {
+    try {
+      const finalFileContent = await readFile(join(testDir, filepath), 'utf-8');
+      
+      // Try to load hash-based tracking data for this file
+      const hashDataFile = join(testDir, '.claude/was-here', `${filepath.replace(/[/\\]/g, '_')}.hash.json`);
+      let hashTrackingData: ClaudeTrackingDataHash[] = [];
+      
+      try {
+        const hashDataContent = await readFile(hashDataFile, 'utf-8');
+        hashTrackingData = JSON.parse(hashDataContent);
+      } catch {
+        // No hash data available, fall back to traditional approach
+        continue;
+      }
+      
+      if (hashTrackingData.length === 0) continue;
+      
+      // Use hash-based matching to find Claude lines in the final file
+      const matches = hashStore.findMatchingLines(finalFileContent);
+      const claudeLines = new Set<number>();
+      
+      // For each hash-based tracking entry, check if the content appears in final file
+      for (const trackingEntry of hashTrackingData) {
+        for (const change of trackingEntry.changes) {
+          const matchingLines = matches.get(change.contentHash);
+          if (matchingLines) {
+            matchingLines.forEach(lineNum => claudeLines.add(lineNum));
+          }
+        }
+      }
+      
+      if (claudeLines.size > 0) {
+        finalClaudeLines[filepath] = claudeLines;
+      }
+      
+    } catch (error) {
+      // File might not exist in final version or other error, skip silently
+      continue;
+    }
+  }
+  
+  // If no hash-based results, fall back to traditional approach
+  if (Object.keys(finalClaudeLines).length === 0) {
+    return await consolidateClaudeContributions(testDir, contributions);
+  }
+  
+  return finalClaudeLines;
+};
+
+/**
+ * Main analysis function that combines all steps (enhanced with hash-based analysis)
  */
 export const analyzePRSquashClaudeContributions = async (
+  testDir: string,
+  baseCommit: string,
+  headCommit: string
+): Promise<string> => {
+  // Step 1: Collect Claude notes from all commits in the PR
+  const contributions = await collectClaudeNotesFromCommits(testDir, baseCommit, headCommit);
+  
+  // Step 2: Try hash-based consolidation first, fall back to traditional approach
+  const claudeLineMapping = await consolidateClaudeContributionsWithHashes(testDir, contributions);
+  
+  // Step 3: Generate the final note
+  return generateClaudeNote(claudeLineMapping);
+};
+
+/**
+ * Original analysis function (kept for backward compatibility)
+ */
+export const analyzePRSquashClaudeContributionsLegacy = async (
   testDir: string,
   baseCommit: string,
   headCommit: string

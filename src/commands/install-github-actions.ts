@@ -215,12 +215,25 @@ const consolidateClaudeContributions = async (
     }
   }
   
-  // Filter out files that don't exist in the final version
+  // Filter out files that don't exist and validate line numbers are within bounds
   const existingFiles: ClaudeLineMapping = {};
   for (const [filepath, lineSet] of Object.entries(finalClaudeLines)) {
     try {
-      await readFile(join(testDir, filepath), 'utf-8');
-      existingFiles[filepath] = lineSet;
+      const fileContent = await readFile(join(testDir, filepath), 'utf-8');
+      const totalLines = fileContent.split('\\n').length;
+      
+      // Filter out line numbers that exceed the file's actual line count
+      const validLines = new Set<number>();
+      for (const lineNum of lineSet) {
+        if (lineNum >= 1 && lineNum <= totalLines) {
+          validLines.add(lineNum);
+        }
+      }
+      
+      // Only include the file if it has valid Claude lines
+      if (validLines.size > 0) {
+        existingFiles[filepath] = validLines;
+      }
     } catch (error) {
       // File doesn't exist in final version, skip it
       continue;
@@ -270,7 +283,7 @@ const convertLinesToRanges = (lines: number[]): string => {
  * Generate a claude-was-here note in the standard format
  */
 const generateClaudeNote = (claudeLineMapping: ClaudeLineMapping): string => {
-  let output = 'claude-was-here\\nversion: 1.0\\n';
+  let output = 'claude-was-here\\nversion: 1.1\\n';
   
   const filesWithLines = Object.keys(claudeLineMapping).filter(
     filepath => claudeLineMapping[filepath].size > 0

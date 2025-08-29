@@ -1,6 +1,7 @@
 import { readFile, writeFile, appendFile } from 'fs/promises';
 import { join, relative } from 'path';
 import { ensureDirectory, getClaudeWasHereDir } from '../utils/files.ts';
+import { ContentHashStore, createHashedTrackingData, type ClaudeTrackingDataHash } from '../lib/content-hash.ts';
 import type { ClaudeEditInput, ClaudeEditResponse, ClaudePostToolUseHookData, ClaudeMultiEditInput, ClaudeMultiEditResponse, FileMetadata } from '../types.ts';
 
 export async function trackChanges(): Promise<void> {
@@ -174,7 +175,7 @@ export async function trackChanges(): Promise<void> {
       }
     }
     
-    // Store metadata
+    // Store traditional metadata for backward compatibility
     const wasHereDir = getClaudeWasHereDir();
     await ensureDirectory(wasHereDir);
     
@@ -193,8 +194,50 @@ export async function trackChanges(): Promise<void> {
     
     // Save updated metadata
     await writeFile(metadataFile, JSON.stringify(existingData, null, 2));
-    await log(`Metadata saved to: ${metadataFile}`);
-    await log(`Metadata: ${JSON.stringify(metadata, null, 2)}`);
+    await log(`Traditional metadata saved to: ${metadataFile}`);
+    
+    // ALSO store hash-based tracking data
+    try {
+      const hashStore = new ContentHashStore(wasHereDir);
+      await hashStore.load();
+      
+      // Read current file content
+      const fileContent = await readFile(filePath, 'utf-8');
+      
+      // Create hash-based tracking data
+      const hashTrackingData = await createHashedTrackingData(
+        toolName,
+        relPath,
+        metadata.lines,
+        fileContent,
+        hashStore
+      );
+      
+      // Save the hash store
+      await hashStore.save();
+      
+      // Save hash-based tracking data
+      const hashMetadataFile = join(wasHereDir, `${relPath.replace(/[/\\]/g, '_')}.hash.json`);
+      let existingHashData: ClaudeTrackingDataHash[] = [];
+      try {
+        const existing = await readFile(hashMetadataFile, 'utf-8');
+        existingHashData = JSON.parse(existing);
+      } catch {
+        existingHashData = [];
+      }
+      
+      existingHashData.push(hashTrackingData);
+      await writeFile(hashMetadataFile, JSON.stringify(existingHashData, null, 2));
+      await log(`Hash-based metadata saved to: ${hashMetadataFile}`);
+      await log(`Hash tracking data: ${JSON.stringify(hashTrackingData, null, 2)}`);
+      
+      const stats = hashStore.getStats();
+      await log(`Content hash store stats: ${JSON.stringify(stats)}`);
+      
+    } catch (hashError) {
+      await log(`Error creating hash-based tracking: ${hashError}`);
+      // Continue with traditional approach if hash-based fails
+    }
     
   } catch (error) {
     await log(`Error in trackChanges: ${error}`);
