@@ -123,7 +123,7 @@ describe('Integration Tests', () => {
     if (notesOutput.trim()) {
       const noteData = parseTsvToGitNoteData(notesOutput);
       expect(noteData.claude_was_here).toBeDefined();
-      expect(noteData.claude_was_here.version).toBe('1.1');
+      expect(noteData.claude_was_here.version).toBe('1.2');
       expect(noteData.claude_was_here.files).toBeDefined();
       expect(noteData.claude_was_here.files['sample.js']).toBeDefined();
       expect(noteData.claude_was_here.files['sample.js'].ranges).toBeDefined();
