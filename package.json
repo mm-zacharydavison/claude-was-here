@@ -7,8 +7,9 @@
     "claude-was-here": "dist/cli.js"
   },
   "scripts": {
-    "build": "bun build src/cli.ts --outdir dist --target bun --format esm",
-    "build:binary": "bun build src/cli.ts --compile --outfile claude-was-here",
+    "build": "bun run build:github-script && bun build src/cli.ts --outdir dist --target bun --format esm",
+    "build:binary": "bun run build && bun build src/cli.ts --compile --outfile claude-was-here",
+    "build:github-script": "bun build src/scripts/analyze-claude-lines.ts --outdir dist/github-scripts --target node --format esm",
     "dev": "bun run src/cli.ts",
     "init": "bun run src/cli.ts init",
     "type-check": "tsc --noEmit",
