@@ -67,3 +67,24 @@ export interface FileChangeRecord {
 export interface WorkingTrackingData {
   records: FileChangeRecord[];
 }
+
+// Post-commit data structures
+export interface LineRange {
+  start: number;
+  end: number;
+}
+
+export interface FileAuthorshipInfo {
+  filePath: string;
+  aiAuthoredRanges: LineRange[];
+}
+
+export interface CommitAuthorshipData {
+  version: string;
+  files: FileAuthorshipInfo[];
+}
+
+export interface LineAuthorshipResult {
+  lineNumber: number;
+  isAiAuthored: boolean;
+}

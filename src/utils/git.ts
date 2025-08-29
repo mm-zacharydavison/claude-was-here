@@ -28,4 +28,26 @@ export async function checkGitRepo(): Promise<boolean> {
   }
 }
 
-// TODO: Implement new git integration functions
+export async function getCurrentCommitHash(): Promise<string> {
+  return await execGitCommand(['rev-parse', 'HEAD']);
+}
+
+export async function addGitNote(commitHash: string, note: string, notesRef: string = 'claude-was-here'): Promise<void> {
+  await execGitCommand(['notes', '--ref', notesRef, 'add', '-m', note, commitHash]);
+}
+
+export async function getGitNote(commitHash: string, notesRef: string = 'claude-was-here'): Promise<string | null> {
+  try {
+    return await execGitCommand(['notes', '--ref', notesRef, 'show', commitHash]);
+  } catch {
+    return null;
+  }
+}
+
+export async function removeGitNote(commitHash: string, notesRef: string = 'claude-was-here'): Promise<void> {
+  try {
+    await execGitCommand(['notes', '--ref', notesRef, 'remove', commitHash]);
+  } catch {
+    // Note doesn't exist, ignore
+  }
+}
