@@ -16,6 +16,10 @@ jobs:
         with:
           fetch-depth: 0  # Fetch full history to access all commits
           
+      - name: Fetch git notes
+        run: |
+          git fetch origin refs/notes/claude-was-here:refs/notes/claude-was-here || echo "No claude-was-here notes found"
+          
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
