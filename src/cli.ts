@@ -8,6 +8,7 @@ import { trackChanges } from './commands/track-changes.ts';
 import { preCommitHook } from './commands/pre-commit.ts';
 import { postCommitHook } from './commands/post-commit.ts';
 import { showStats } from './commands/stats.ts';
+import { scrubClaudeData } from './commands/scrub.ts';
 
 const program = new Command();
 
@@ -110,6 +111,19 @@ program
   .option('--since <period>', 'Time period to analyze (e.g., "1 week", "2 months", "1 year")', '1 week')
   .action(async (options) => {
     await showStats(options);
+  });
+
+program
+  .command('scrub')
+  .description('Remove all claude-was-here data from the repository')
+  .option('--force', 'Skip confirmation prompt')
+  .action(async (options) => {
+    try {
+      await scrubClaudeData(options.force);
+    } catch (error) {
+      console.error('❌ Failed to scrub claude-was-here data:', error);
+      process.exit(1);
+    }
   });
 
 program.parse();

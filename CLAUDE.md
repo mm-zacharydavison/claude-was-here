@@ -29,6 +29,12 @@ bun run dev
 
 # Run a specific test file
 bun test tests/[filename].test.ts
+
+# Remove all claude-was-here data from repository
+claude-was-here scrub
+
+# Remove all claude-was-here data without confirmation prompt
+claude-was-here scrub --force
 ```
 
 ## Architecture
