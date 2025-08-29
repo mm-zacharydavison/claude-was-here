@@ -166,7 +166,7 @@ describe('claude-was-here E2E Tests', () => {
     
     const noteData = parseTsvToGitNoteData(notesResult.stdout);
     expect(noteData.claude_was_here).toBeDefined();
-    expect(noteData.claude_was_here.version).toBe('1.0');
+    expect(noteData.claude_was_here.version).toBe('1.1');
     expect(noteData.claude_was_here.files).toBeDefined();
     expect(noteData.claude_was_here.files[testFile]).toBeDefined();
     expect(noteData.claude_was_here.files[testFile].ranges).toBeDefined();

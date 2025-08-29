@@ -19,6 +19,10 @@ interface ClaudeContribution {
   ranges: string;
 }
 
+interface ContentSignatures {
+  hashes: Set<string>;
+}
+
 interface ClaudeLineMapping {
   [filepath: string]: Set<number>;
 }
@@ -52,11 +56,12 @@ const collectClaudeNotesFromCommits = async (
   testDir: string, 
   baseCommit: string, 
   headCommit: string
-): Promise<ClaudeContribution[]> => {
+): Promise<{ contributions: ClaudeContribution[], contentSignatures: ContentSignatures }> => {
   const commitsResult = await execGitCommand(['log', '--format=%H', `${baseCommit}..${headCommit}`], testDir);
   const commits = commitsResult.stdout.split('\n').filter(hash => hash.trim());
   
   const contributions: ClaudeContribution[] = [];
+  const contentSignatures: ContentSignatures = { hashes: new Set() };
   
   for (const commitHash of commits) {
     const notesResult = await execGitCommand(['notes', 'show', commitHash], testDir);
@@ -65,6 +70,16 @@ const collectClaudeNotesFromCommits = async (
       
       for (const line of noteLines) {
         if (line === 'claude-was-here' || line.startsWith('version:')) {
+          continue;
+        }
+        
+        // Handle content-signatures line
+        if (line.startsWith('content-signatures:')) {
+          const hashesStr = line.substring('content-signatures:'.length).trim();
+          if (hashesStr) {
+            const hashes = hashesStr.split(',').map(h => h.trim()).filter(h => h);
+            hashes.forEach(hash => contentSignatures.hashes.add(hash));
+          }
           continue;
         }
         
@@ -78,7 +93,7 @@ const collectClaudeNotesFromCommits = async (
     }
   }
   
-  return contributions;
+  return { contributions, contentSignatures };
 };
 
 // Note: Removed getFinalDiffLines - we now use git notes data directly
@@ -195,7 +210,7 @@ const convertLinesToRanges = (lines: number[]): string => {
 /**
  * Generate a claude-was-here note in the standard format
  */
-const generateClaudeNote = (claudeLineMapping: ClaudeLineMapping): string => {
+const generateClaudeNote = (claudeLineMapping: ClaudeLineMapping, contentSignatures?: ContentSignatures): string => {
   let output = 'claude-was-here\nversion: 1.1\n';
   
   const filesWithLines = Object.keys(claudeLineMapping).filter(
@@ -215,6 +230,12 @@ const generateClaudeNote = (claudeLineMapping: ClaudeLineMapping): string => {
     }
   }
   
+  // Add content signatures if present
+  if (contentSignatures && contentSignatures.hashes.size > 0) {
+    output += '\n'; // Empty line separator
+    output += `content-signatures: ${Array.from(contentSignatures.hashes).join(',')}\n`;
+  }
+  
   return output;
 };
 
@@ -227,13 +248,13 @@ const analyzePRSquashClaudeContributions = async (
   headCommit: string
 ): Promise<string> => {
   // Step 1: Collect Claude notes from all commits in the PR
-  const contributions = await collectClaudeNotesFromCommits(testDir, baseCommit, headCommit);
+  const { contributions, contentSignatures } = await collectClaudeNotesFromCommits(testDir, baseCommit, headCommit);
   
   // Step 2: Consolidate Claude contributions directly from git notes data
   const claudeLineMapping = await consolidateClaudeContributions(testDir, contributions);
   
-  // Step 3: Generate the final note
-  return generateClaudeNote(claudeLineMapping);
+  // Step 3: Generate the final note with preserved content signatures
+  return generateClaudeNote(claudeLineMapping, contentSignatures);
 };
 
 async function main() {
