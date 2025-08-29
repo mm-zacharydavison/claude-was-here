@@ -8,8 +8,6 @@ jobs:
   attach-claude-notes:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    container:
-      image: oven/bun:latest
     permissions:
       contents: write
     
@@ -19,6 +17,11 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.ref }}  # Checkout the target branch
+          
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
           
       - name: Download Claude notes artifact
         uses: actions/download-artifact@v4

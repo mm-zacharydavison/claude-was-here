@@ -12,8 +12,6 @@ on:
 jobs:
   collect-claude-notes:
     runs-on: ubuntu-latest
-    container:
-      image: oven/bun:latest
     permissions:
       contents: read
     
@@ -22,6 +20,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to access all commits
+          
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
           
       - name: Get base and head commits
         id: commits
@@ -55,8 +58,6 @@ jobs:
   attach-claude-notes:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    container:
-      image: oven/bun:latest
     permissions:
       contents: write
     
@@ -66,6 +67,11 @@ jobs:
         with:
           fetch-depth: 0
           ref: \${{ github.event.pull_request.base.ref }}  # Checkout the target branch
+          
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
           
       - name: Download Claude notes artifact
         uses: actions/download-artifact@v4

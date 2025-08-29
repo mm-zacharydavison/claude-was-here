@@ -7,8 +7,6 @@ on:
 jobs:
   collect-claude-notes:
     runs-on: ubuntu-latest
-    container:
-      image: oven/bun:latest
     permissions:
       contents: read
     
@@ -17,6 +15,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to access all commits
+          
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
           
       - name: Get base and head commits
         id: commits
