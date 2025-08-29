@@ -7,21 +7,17 @@ import { join } from 'path';
  */
 async function promptForConfirmation(message: string): Promise<boolean> {
   return new Promise((resolve) => {
-    process.stdout.write(message + ' (y/N): ');
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
+    const readline = require('readline');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
     
-    const onData = (buffer: Buffer) => {
-      const input = buffer.toString().toLowerCase().trim();
-      process.stdin.setRawMode(false);
-      process.stdin.pause();
-      process.stdin.off('data', onData);
-      console.log(); // New line after input
-      
+    rl.question(message + ' (y/N): ', (answer: string) => {
+      rl.close();
+      const input = answer.toLowerCase().trim();
       resolve(input === 'y' || input === 'yes');
-    };
-    
-    process.stdin.on('data', onData);
+    });
   });
 }
 
