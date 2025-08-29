@@ -1,6 +1,0 @@
-claude-was-here
-version: 1.0
-src/commands/install-github-actions.ts:  83-370,381-392,402-408,487-496
-src/lib/pr-squash-analysis.ts:           1-294
-tests/helpers/tsv.ts:                    51-64
-tests/pr-squash.test.ts:                 4-10,44-51,77-86,89-167,169-180,182-190,265-271,424-680
