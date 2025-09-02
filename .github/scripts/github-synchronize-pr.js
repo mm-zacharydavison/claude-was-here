@@ -30,7 +30,7 @@ async function main() {
   const headCommit = args[3];
   
   try {
-    const commitsResult = await execGitCommand(['log', '--format=%H', `${baseCommit}..${headCommit}`]);
+    const commitsResult = await execGitCommand(['log', '--first-parent', '--format=%H', `${baseCommit}..${headCommit}`]);
     if (commitsResult.code !== 0) {
       throw new Error(`Failed to get commits: ${commitsResult.stderr}`);
     }
