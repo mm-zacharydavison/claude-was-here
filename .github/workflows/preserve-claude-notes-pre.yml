@@ -15,73 +15,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to access all commits
-          ref: ${{ github.head_ref }}  # Checkout the actual PR branch head
-          token: ${{ secrets.GITHUB_TOKEN }}  # Ensure we have proper access
           
       - name: Fetch git notes
         run: |
-          # Configure git user (needed for notes operations)
-          git config --local user.name "claude-was-here[bot]"
-          git config --local user.email "claude-was-here[bot]@users.noreply.github.com"
-          
-          # Check what notes refs exist on remote
-          echo "Checking remote notes refs..."
-          git ls-remote origin refs/notes/* || echo "No notes refs on remote"
-          
-          # Try multiple approaches to fetch git notes
-          echo "Attempting to fetch git notes with different methods..."
-          
-          # Method 1: Direct fetch
-          if git fetch origin +refs/notes/commits:refs/notes/commits; then
-            echo "✅ Method 1: Successfully fetched git notes directly"
-          else
-            echo "❌ Method 1: Failed to fetch git notes directly"
-            
-            # Method 2: Fetch all refs
-            echo "Trying to fetch all refs..."
-            git fetch origin
-            
-            # Method 3: Try specific notes fetch
-            echo "Trying explicit notes fetch..."
-            git fetch origin refs/notes/*:refs/notes/* || echo "No notes refs found"
-          fi
-          
-          # List all notes refs to see what's available
-          echo "Available notes refs:"
-          git for-each-ref refs/notes/ || echo "No notes refs found"
-          
+          # Fetch default git notes if they exist
+          git fetch origin refs/notes/commits:refs/notes/commits 2>/dev/null || echo "No git notes found yet"
           # Show what notes we have
-          echo "Checking for existing notes on recent commits..."
-          git log --oneline --notes=commits -n 5 || echo "No notes found on recent commits"
-          
-          # Test if we can access notes for the specific commits that will be processed
-          echo "Testing note access for commits in this PR..."
-          BASE_COMMIT=$(git merge-base HEAD origin/${{ github.base_ref }})
-          HEAD_COMMIT=$(git rev-parse HEAD)
-          echo "Will process commits between $BASE_COMMIT and $HEAD_COMMIT"
-          
-          git log --format="%H" "$BASE_COMMIT..$HEAD_COMMIT" | while read commit; do
-            if git notes show "$commit" 2>/dev/null; then
-              echo "✅ Found notes for commit $commit"
-              echo "Note content preview:"
-              git notes show "$commit" | head -5
-              echo "---"
-            else
-              echo "❌ No notes for commit $commit"
-              # Try to get commit info for debugging
-              echo "   Commit info: $(git log --format='%h %s' -n 1 $commit)"
-            fi
-          done
-          
-          # Additional debugging: check if notes exist for any commits in our repository
-          echo "Checking all available notes in repository..."
-          git for-each-ref refs/notes/commits --format='%(refname) %(objectname)' | while read ref sha; do
-            echo "Notes ref: $ref -> $sha"
-          done
-          
-          # List recent commits that have notes anywhere in the repo
-          echo "Recent commits with notes (any branch):"
-          git log --all --oneline --notes -n 5 2>/dev/null || echo "No commits with notes found"
+          echo "Checking for existing notes..."
+          git log --oneline --notes=commits -n 5 || true
           
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -92,7 +33,6 @@ jobs:
         id: commits
         run: |
           BASE_COMMIT=$(git merge-base HEAD origin/${{ github.base_ref }})
-          # Get the actual current HEAD commit after checking out the PR branch
           HEAD_COMMIT=$(git rev-parse HEAD)
           echo "base_commit=$BASE_COMMIT" >> $GITHUB_OUTPUT
           echo "head_commit=$HEAD_COMMIT" >> $GITHUB_OUTPUT
@@ -101,12 +41,7 @@ jobs:
           
       - name: Collect and consolidate Claude notes
         run: |
-          echo "🔍 Collecting Claude notes for PR..."
-          if ! bun run .github/scripts/github-synchronize-pr.js --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"; then
-            echo "❌ Failed to collect Claude notes"
-            exit 1
-          fi
-          echo "✅ Successfully collected Claude notes"
+          bun run .github/scripts/github-synchronize-pr.js --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"
           
       - name: Upload Claude notes data as artifact
         if: hashFiles('claude-notes-data.json') != ''
@@ -115,14 +50,3 @@ jobs:
           name: claude-notes-pr-${{ github.event.number }}
           path: claude-notes-data.json
           retention-days: 30
-          
-      - name: Report completion status
-        run: |
-          if [ -f "claude-notes-data.json" ]; then
-            echo "🎉 Claude notes preservation completed successfully"
-            echo "📦 Artifact uploaded for PR merge processing"
-          else
-            echo "ℹ️  No Claude contributions found in this PR"
-            echo "✅ Workflow completed successfully (no action needed)"
-          fi
-          echo "🟢 PR is ready for merge - Claude notes workflow passed"
