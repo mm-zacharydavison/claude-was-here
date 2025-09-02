@@ -80,7 +80,7 @@ jobs:
       - name: Download Claude notes artifact
         uses: actions/download-artifact@v4
         with:
-          name: claude-notes-pr-\${{ github.event.number }}
+          name: claude-notes-pr-\${{ github.event.pull_request.number }}
           path: ./artifacts/
         continue-on-error: true
         
@@ -220,7 +220,7 @@ async function main() {
   const headCommit = args[3];
   
   try {
-    const commitsResult = await execGitCommand(['log', '--format=%H', \`\${baseCommit}..\${headCommit}\`]);
+    const commitsResult = await execGitCommand(['log', '--first-parent', '--format=%H', \`\${baseCommit}..\${headCommit}\`]);
     if (commitsResult.code !== 0) {
       throw new Error(\`Failed to get commits: \${commitsResult.stderr}\`);
     }
