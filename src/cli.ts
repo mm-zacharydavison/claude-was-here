@@ -7,6 +7,7 @@ import { installGitHubActions } from './commands/install-github-actions.ts';
 import { trackChanges } from './commands/track-changes.ts';
 import { preCommitHook } from './commands/pre-commit.ts';
 import { postCommitHook } from './commands/post-commit.ts';
+import { prePushHook } from './commands/pre-push.ts';
 import { showStats } from './commands/stats.ts';
 import { scrubClaudeData } from './commands/scrub.ts';
 
@@ -103,6 +104,13 @@ program
   .description('Internal: Post-commit hook logic')
   .action(async () => {
     await postCommitHook();
+  });
+
+program
+  .command('pre-push')
+  .description('Internal: Pre-push hook logic')
+  .action(async () => {
+    await prePushHook();
   });
 
 program

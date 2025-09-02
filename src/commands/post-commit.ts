@@ -223,33 +223,6 @@ export async function postCommitHook(): Promise<void> {
     
     await addGitNote(commitHash, noteText);
     
-    // Push the notes to remote using a simple approach
-    try {
-      const { spawn } = require('child_process');
-      const pushProc = spawn('git', ['push', 'origin', 'refs/notes/commits'], { 
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: false 
-      });
-      
-      let pushOutput = '';
-      let pushError = '';
-      pushProc.stdout?.on('data', (data) => pushOutput += data.toString());
-      pushProc.stderr?.on('data', (data) => pushError += data.toString());
-      
-      await new Promise((resolve) => {
-        pushProc.on('close', (code) => {
-          if (code === 0) {
-            logger.log('📤 Pushed git notes to remote');
-          } else {
-            logger.warn(`⚠️  Could not push git notes: ${pushError}`);
-          }
-          resolve(undefined);
-        });
-      });
-    } catch (error) {
-      logger.warn('⚠️  Could not push git notes to remote:', error);
-    }
-    
     // Clear the tracking data
     await rm(trackingFile);
     
