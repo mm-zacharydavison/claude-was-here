@@ -7,7 +7,7 @@
     "claude-was-here": "dist/cli.js"
   },
   "scripts": {
-    "build": "bun build src/cli.ts --outdir dist --target bun --format esm && bun run build:scripts && bun run build:binary",
+    "build": "bun build src/cli.ts --outdir dist --target bun --format esm && bun run build:scripts",
     "build:scripts": "bun build src/scripts/github-synchronize-pr.ts --outdir dist/scripts --target bun --format esm && bun build src/scripts/github-squash-pr.ts --outdir dist/scripts --target bun --format esm",
     "build:binary": "bun run build && bun build src/cli.ts --compile --outfile claude-was-here",
     "dev": "bun run src/cli.ts",
