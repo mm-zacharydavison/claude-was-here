@@ -1,0 +1,4 @@
+claude-was-here
+version: 1.1
+.github/scripts/github-squash-pr.js:  84,87,95-110,112,117-119,121-122,144
+test-path-fix.md:                     1-11

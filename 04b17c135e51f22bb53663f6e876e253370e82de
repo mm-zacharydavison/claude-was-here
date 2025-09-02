@@ -1,0 +1,9 @@
+claude-was-here
+version: 1.1
+/home/z/Desktop/work/claude-was-here/.github/workflows/preserve-claude-notes-pre.yml: 18, 20, 26, 31, 34, 41, 43, 45
+/home/z/Desktop/work/claude-was-here/.github/workflows/preserve-claude-notes-post.yml: 20, 25, 35, 43, 45-46, 50, 54
+/home/z/Desktop/work/claude-was-here/src/commands/install-github-actions.ts: 1-448
+/home/z/Desktop/work/claude-was-here/tests/github-squashing.test.ts: 40, 43-44, 47, 50, 54-56, 58-60
+/home/z/Desktop/work/claude-was-here/src/scripts/github-synchronize-pr.ts: 1-23
+/home/z/Desktop/work/claude-was-here/src/scripts/github-squash-pr.ts: 1-24
+/home/z/Desktop/work/claude-was-here/package.json: 10-11
