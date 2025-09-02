@@ -1,7 +1,7 @@
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { ensureDirectory, writeExecutableFile, getGitHooksDir, fileExists } from '../utils/files.ts';
-import { checkGitRepo } from '../utils/git.ts';
+import { checkGitRepo, execGitCommandWithResult } from '../utils/git.ts';
 
 async function installHookWithPreservation(hookPath: string, claudeHookCommand: string): Promise<void> {
   let finalContent: string;
@@ -26,6 +26,36 @@ async function installHookWithPreservation(hookPath: string, claudeHookCommand: 
   await writeExecutableFile(hookPath, finalContent);
 }
 
+async function configureGitPushForNotes(): Promise<void> {
+  console.log('⚙️  Configuring git to auto-push notes...');
+  
+  try {
+    // Check if push refspecs are already configured
+    const { stdout } = await execGitCommandWithResult(['config', '--get-all', 'remote.origin.push']);
+    const currentRefspecs = stdout ? stdout.split('\n').filter(line => line.trim()) : [];
+    
+    // Check if notes refspec is already present
+    const notesRefspec = '+refs/notes/commits:refs/notes/commits';
+    if (currentRefspecs.includes(notesRefspec)) {
+      console.log('✅ Git notes auto-push already configured');
+      return;
+    }
+    
+    // If no push refspecs are configured, set up the standard ones
+    if (currentRefspecs.length === 0) {
+      await execGitCommandWithResult(['config', 'remote.origin.push', '+refs/heads/*:refs/heads/*']);
+    }
+    
+    // Add the notes refspec
+    await execGitCommandWithResult(['config', '--add', 'remote.origin.push', notesRefspec]);
+    console.log('✅ Git configured to auto-push notes with regular pushes');
+    
+  } catch (error) {
+    // If git config fails (e.g., no remote named origin), warn but don't fail
+    console.log('⚠️  Could not configure automatic notes pushing (no origin remote?)');
+  }
+}
+
 export async function installGitHooks(): Promise<void> {
   console.log('📦 Installing git hooks...');
   
@@ -43,6 +73,9 @@ export async function installGitHooks(): Promise<void> {
   // Install post-commit hook
   const postCommitHook = join(gitHooksDir, 'post-commit');
   await installHookWithPreservation(postCommitHook, 'claude-was-here post-commit');
+  
+  // Configure git to automatically push notes
+  await configureGitPushForNotes();
   
   console.log('✅ Git hooks installed');
 }
