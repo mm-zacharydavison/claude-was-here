@@ -1,2 +1,0 @@
-Testing post-commit hook auto-push functionality
-This is a simple test file to trigger the post-commit hook and debug the auto-push issue.
