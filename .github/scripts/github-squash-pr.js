@@ -144,9 +144,25 @@ async function main() {
       throw new Error(`Failed to add note: ${addNoteResult.stderr}`);
     }
     
+    // Fetch remote notes to avoid conflicts
+    console.log('📡 Fetching remote notes...');
+    const fetchResult = await execGitCommand(['fetch', 'origin', 'refs/notes/commits:refs/notes/commits']);
+    if (fetchResult.code !== 0) {
+      console.log('ℹ️  No remote notes to fetch (this is normal for new repositories)');
+    }
+    
+    // Try to merge remote notes if they exist
+    const mergeResult = await execGitCommand(['notes', 'merge', 'refs/notes/commits']);
+    if (mergeResult.code !== 0) {
+      console.log('ℹ️  No notes merge needed');
+    }
+    
+    // Push the notes
     const pushResult = await execGitCommand(['push', 'origin', 'refs/notes/commits']);
     if (pushResult.code !== 0) {
       console.warn('⚠️  Warning: Could not push git notes to remote:', pushResult.stderr);
+    } else {
+      console.log('📤 Successfully pushed git notes to remote');
     }
     
     console.log('✅ Successfully applied Claude notes to merge commit');
