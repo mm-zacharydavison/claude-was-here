@@ -223,19 +223,6 @@ export async function postCommitHook(): Promise<void> {
     
     await addGitNote(commitHash, noteText);
     
-    // Push the notes to remote immediately to ensure they're available for GitHub Actions
-    try {
-      const { execGitCommandWithResult } = await import('../utils/git.ts');
-      const pushResult = await execGitCommandWithResult(['push', 'origin', 'refs/notes/commits']);
-      if (pushResult.code !== 0) {
-        logger.warn('⚠️  Could not push git notes to remote:', pushResult.stderr);
-      } else {
-        logger.log('📤 Pushed git notes to remote');
-      }
-    } catch (error) {
-      logger.warn('⚠️  Could not push git notes to remote:', error);
-    }
-    
     // Clear the tracking data
     await rm(trackingFile);
     

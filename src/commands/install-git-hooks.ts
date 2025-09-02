@@ -38,10 +38,11 @@ async function configureGitPushForNotes(): Promise<void> {
     const { stdout: fetchRefspecs } = await execGitCommandWithResult(['config', '--get-all', 'remote.origin.fetch']);
     const currentFetchRefspecs = fetchRefspecs ? fetchRefspecs.split('\n').filter(line => line.trim()) : [];
     
-    // Check if notes refspec is already present
-    const notesRefspec = '+refs/notes/commits:refs/notes/commits';
-    const pushAlreadyConfigured = currentPushRefspecs.includes(notesRefspec);
-    const fetchAlreadyConfigured = currentFetchRefspecs.includes(notesRefspec);
+    // Check if notes refspec is already present (using wildcard for all notes refs)
+    const notesRefspec = '+refs/notes/*:refs/notes/*';
+    const oldNotesRefspec = '+refs/notes/commits:refs/notes/commits';
+    const pushAlreadyConfigured = currentPushRefspecs.includes(notesRefspec) || currentPushRefspecs.includes(oldNotesRefspec);
+    const fetchAlreadyConfigured = currentFetchRefspecs.includes(notesRefspec) || currentFetchRefspecs.includes(oldNotesRefspec);
     
     if (pushAlreadyConfigured && fetchAlreadyConfigured) {
       console.log('✅ Git notes auto-push and auto-fetch already configured');
