@@ -175,6 +175,17 @@ async function main() {
       console.log('📤 Successfully pushed git notes to remote');
     }
     
+    // Show the notes that were attached to the commit
+    console.log('📝 Displaying attached git notes:');
+    console.log('─'.repeat(50));
+    const showNotesResult = await execGitCommand(['notes', 'show', mergeCommit]);
+    if (showNotesResult.code === 0) {
+      console.log(showNotesResult.stdout);
+    } else {
+      console.log('❌ Could not display notes (this should not happen)');
+    }
+    console.log('─'.repeat(50));
+    
     console.log('✅ Successfully applied Claude notes to merge commit');
     
   } catch (error) {
