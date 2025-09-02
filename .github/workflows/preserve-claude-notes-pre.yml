@@ -33,7 +33,8 @@ jobs:
         id: commits
         run: |
           BASE_COMMIT=$(git merge-base HEAD origin/${{ github.base_ref }})
-          HEAD_COMMIT=$(git rev-parse HEAD)
+          # Use the actual PR head commit, not the merge commit created by GitHub Actions
+          HEAD_COMMIT="${{ github.event.pull_request.head.sha }}"
           echo "base_commit=$BASE_COMMIT" >> $GITHUB_OUTPUT
           echo "head_commit=$HEAD_COMMIT" >> $GITHUB_OUTPUT
           echo "Base commit: $BASE_COMMIT"
