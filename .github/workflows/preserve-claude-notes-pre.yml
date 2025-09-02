@@ -16,12 +16,35 @@ jobs:
         with:
           fetch-depth: 0  # Fetch full history to access all commits
           ref: ${{ github.head_ref }}  # Checkout the actual PR branch head
+          token: ${{ secrets.GITHUB_TOKEN }}  # Ensure we have proper access
           
       - name: Fetch git notes
         run: |
-          # Fetch default git notes if they exist (using force flag to ensure we get updates)
-          echo "Attempting to fetch git notes..."
-          git fetch origin +refs/notes/commits:refs/notes/commits 2>/dev/null || echo "No git notes found in origin"
+          # Configure git user (needed for notes operations)
+          git config --local user.name "claude-was-here[bot]"
+          git config --local user.email "claude-was-here[bot]@users.noreply.github.com"
+          
+          # Check what notes refs exist on remote
+          echo "Checking remote notes refs..."
+          git ls-remote origin refs/notes/* || echo "No notes refs on remote"
+          
+          # Try multiple approaches to fetch git notes
+          echo "Attempting to fetch git notes with different methods..."
+          
+          # Method 1: Direct fetch
+          if git fetch origin +refs/notes/commits:refs/notes/commits; then
+            echo "✅ Method 1: Successfully fetched git notes directly"
+          else
+            echo "❌ Method 1: Failed to fetch git notes directly"
+            
+            # Method 2: Fetch all refs
+            echo "Trying to fetch all refs..."
+            git fetch origin
+            
+            # Method 3: Try specific notes fetch
+            echo "Trying explicit notes fetch..."
+            git fetch origin refs/notes/*:refs/notes/* || echo "No notes refs found"
+          fi
           
           # List all notes refs to see what's available
           echo "Available notes refs:"
@@ -40,11 +63,25 @@ jobs:
           git log --format="%H" "$BASE_COMMIT..$HEAD_COMMIT" | while read commit; do
             if git notes show "$commit" 2>/dev/null; then
               echo "✅ Found notes for commit $commit"
-              git notes show "$commit" | head -3
+              echo "Note content preview:"
+              git notes show "$commit" | head -5
+              echo "---"
             else
               echo "❌ No notes for commit $commit"
+              # Try to get commit info for debugging
+              echo "   Commit info: $(git log --format='%h %s' -n 1 $commit)"
             fi
           done
+          
+          # Additional debugging: check if notes exist for any commits in our repository
+          echo "Checking all available notes in repository..."
+          git for-each-ref refs/notes/commits --format='%(refname) %(objectname)' | while read ref sha; do
+            echo "Notes ref: $ref -> $sha"
+          done
+          
+          # List recent commits that have notes anywhere in the repo
+          echo "Recent commits with notes (any branch):"
+          git log --all --oneline --notes -n 5 2>/dev/null || echo "No commits with notes found"
           
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
