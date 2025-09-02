@@ -18,12 +18,48 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.ref }}  # Checkout the target branch
           
-      - name: Download Claude notes artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: claude-notes-pr-${{ github.event.number }}
-          path: ./artifacts/
-        continue-on-error: true
+      - name: Find and download Claude notes artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find the most recent workflow run for this PR that created the artifact
+          ARTIFACT_NAME="claude-notes-pr-${{ github.event.number }}"
+          echo "Looking for artifact: $ARTIFACT_NAME"
+          
+          # Get the workflow runs for pull_request events on this PR
+          WORKFLOW_RUNS=$(gh api repos/${{ github.repository }}/actions/runs \
+            --jq '.workflow_runs[] | select(.event == "pull_request" and .head_sha == "${{ github.event.pull_request.head.sha }}") | .id' \
+            | head -10)
+          
+          echo "Found workflow runs: $WORKFLOW_RUNS"
+          
+          # Try to find and download the artifact from each run
+          mkdir -p ./artifacts/
+          FOUND=false
+          
+          for run_id in $WORKFLOW_RUNS; do
+            echo "Checking run $run_id for artifacts..."
+            
+            # Check if this run has our artifact
+            if gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts --jq '.artifacts[] | select(.name == "'$ARTIFACT_NAME'") | .id' | head -1 | read artifact_id; then
+              echo "Found artifact $artifact_id in run $run_id, downloading..."
+              
+              # Download the artifact
+              if gh api repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip > artifact.zip 2>/dev/null; then
+                unzip -q artifact.zip -d ./artifacts/
+                echo "Successfully downloaded and extracted artifact"
+                FOUND=true
+                break
+              else
+                echo "Failed to download artifact $artifact_id"
+              fi
+            fi
+          done
+          
+          if [ "$FOUND" = "false" ]; then
+            echo "No Claude notes artifact found for PR ${{ github.event.number }}"
+            echo "This might mean there were no Claude Code contributions in this PR"
+          fi
         
       - name: Check if Claude notes exist
         id: check-notes
