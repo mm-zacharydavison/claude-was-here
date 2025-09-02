@@ -20,10 +20,26 @@ jobs:
       - name: Fetch git notes
         run: |
           # Fetch default git notes if they exist
-          git fetch origin refs/notes/commits:refs/notes/commits 2>/dev/null || echo "No git notes found yet"
+          echo "Attempting to fetch git notes..."
+          git fetch origin refs/notes/commits:refs/notes/commits 2>/dev/null || echo "No git notes found in origin"
+          
+          # List all notes refs to see what's available
+          echo "Available notes refs:"
+          git for-each-ref refs/notes/ || echo "No notes refs found"
+          
           # Show what notes we have
-          echo "Checking for existing notes..."
-          git log --oneline --notes=commits -n 5 || true
+          echo "Checking for existing notes on recent commits..."
+          git log --oneline --notes=commits -n 5 || echo "No notes found on recent commits"
+          
+          # Test if we can access notes for specific commits
+          echo "Testing note access for specific commits..."
+          git log --format="%H" -n 10 | while read commit; do
+            if git notes show "$commit" 2>/dev/null; then
+              echo "✅ Found notes for commit $commit"
+            else
+              echo "❌ No notes for commit $commit"
+            fi
+          done
           
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2

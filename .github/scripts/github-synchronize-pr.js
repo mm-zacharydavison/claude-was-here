@@ -39,8 +39,13 @@ async function main() {
     const contributions = [];
     const contentSignatures = new Set();
     
+    console.log(`🔍 Processing ${commits.length} commits: ${commits.join(', ')}`);
+    
     for (const commitHash of commits) {
+      console.log(`🔍 Checking notes for commit: ${commitHash}`);
       const notesResult = await execGitCommand(['notes', 'show', commitHash]);
+      console.log(`📝 Notes result for ${commitHash}: code=${notesResult.code}, stdout="${notesResult.stdout}", stderr="${notesResult.stderr}"`);
+      
       if (notesResult.code === 0) {
         const noteLines = notesResult.stdout.split('\n');
         
@@ -73,6 +78,8 @@ async function main() {
       contributions,
       contentSignatures: Array.from(contentSignatures)
     };
+    
+    console.log(`📊 Final output data:`, JSON.stringify(outputData, null, 2));
     
     const outputPath = join(process.cwd(), 'claude-notes-data.json');
     await writeFile(outputPath, JSON.stringify(outputData, null, 2));
