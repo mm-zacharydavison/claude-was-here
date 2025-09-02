@@ -16,12 +16,35 @@ jobs:
         with:
           fetch-depth: 0  # Fetch full history to access all commits
           ref: ${{ github.head_ref }}  # Checkout the actual PR branch head
+          token: ${{ secrets.GITHUB_TOKEN }}  # Ensure we have proper access
           
       - name: Fetch git notes
         run: |
-          # Fetch default git notes if they exist (using force flag to ensure we get updates)
-          echo "Attempting to fetch git notes..."
-          git fetch origin +refs/notes/commits:refs/notes/commits 2>/dev/null || echo "No git notes found in origin"
+          # Configure git user (needed for notes operations)
+          git config --local user.name "claude-was-here[bot]"
+          git config --local user.email "claude-was-here[bot]@users.noreply.github.com"
+          
+          # Check what notes refs exist on remote
+          echo "Checking remote notes refs..."
+          git ls-remote origin refs/notes/* || echo "No notes refs on remote"
+          
+          # Try multiple approaches to fetch git notes
+          echo "Attempting to fetch git notes with different methods..."
+          
+          # Method 1: Direct fetch
+          if git fetch origin +refs/notes/commits:refs/notes/commits; then
+            echo "✅ Method 1: Successfully fetched git notes directly"
+          else
+            echo "❌ Method 1: Failed to fetch git notes directly"
+            
+            # Method 2: Fetch all refs
+            echo "Trying to fetch all refs..."
+            git fetch origin
+            
+            # Method 3: Try specific notes fetch
+            echo "Trying explicit notes fetch..."
+            git fetch origin refs/notes/*:refs/notes/* || echo "No notes refs found"
+          fi
           
           # List all notes refs to see what's available
           echo "Available notes refs:"
