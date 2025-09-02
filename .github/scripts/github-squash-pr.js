@@ -92,22 +92,7 @@ async function main() {
     const existingFiles = {};
     for (const [filepath, lineSet] of Object.entries(claudeLineMapping)) {
       try {
-        // Convert absolute paths to relative paths for GitHub Actions environment
-        let relativePath = filepath;
-        if (filepath.startsWith('/')) {
-          // Extract relative path from absolute path (everything after the last occurrence of the repo name)
-          const repoName = 'claude-was-here';
-          const repoIndex = filepath.lastIndexOf('/' + repoName + '/');
-          if (repoIndex !== -1) {
-            relativePath = filepath.substring(repoIndex + repoName.length + 2);
-          } else {
-            // Fallback: try to extract path after common patterns
-            relativePath = filepath.replace(/^.*\/([^\/]+\/[^\/]+\.(ts|js|md|txt|json).*?)$/, '$1');
-          }
-        }
-        
-        console.log(`📁 Processing file: ${filepath} -> ${relativePath}`);
-        const fileContent = await readFile(join(process.cwd(), relativePath), 'utf-8');
+        const fileContent = await readFile(join(process.cwd(), filepath), 'utf-8');
         const totalLines = fileContent.split('\n').length;
         
         const validLines = new Set();
@@ -118,7 +103,7 @@ async function main() {
         }
         
         if (validLines.size > 0) {
-          existingFiles[relativePath] = validLines;
+          existingFiles[filepath] = validLines;
         }
       } catch (error) {
         console.warn(`⚠️  Skipping ${filepath} - file not found in final version`);
@@ -159,47 +144,10 @@ async function main() {
       throw new Error(`Failed to add note: ${addNoteResult.stderr}`);
     }
     
-    // Fetch remote notes to avoid conflicts
-    console.log('📡 Fetching remote notes...');
-    const fetchResult = await execGitCommand(['fetch', 'origin', '+refs/notes/commits:refs/notes/remotes/origin/commits']);
-    if (fetchResult.code === 0) {
-      console.log('✅ Fetched remote notes successfully');
-      
-      // Try to merge remote notes
-      const mergeResult = await execGitCommand(['notes', 'merge', 'refs/notes/remotes/origin/commits']);
-      if (mergeResult.code === 0) {
-        console.log('✅ Merged remote notes successfully');
-      } else {
-        console.log('ℹ️  No notes merge needed or conflicts (this is normal)');
-      }
-    } else {
-      console.log('ℹ️  No remote notes to fetch (this is normal for new repositories)');
-    }
-    
-    // Push the notes with force if needed
-    let pushResult = await execGitCommand(['push', 'origin', 'refs/notes/commits']);
+    const pushResult = await execGitCommand(['push', 'origin', 'refs/notes/commits']);
     if (pushResult.code !== 0) {
-      console.log('⚠️  Regular push failed, trying with force...');
-      pushResult = await execGitCommand(['push', '--force', 'origin', 'refs/notes/commits']);
-      if (pushResult.code !== 0) {
-        console.warn('⚠️  Warning: Could not push git notes to remote:', pushResult.stderr);
-      } else {
-        console.log('📤 Successfully force-pushed git notes to remote');
-      }
-    } else {
-      console.log('📤 Successfully pushed git notes to remote');
+      console.warn('⚠️  Warning: Could not push git notes to remote:', pushResult.stderr);
     }
-    
-    // Show the notes that were attached to the commit
-    console.log('📝 Displaying attached git notes:');
-    console.log('─'.repeat(50));
-    const showNotesResult = await execGitCommand(['notes', 'show', mergeCommit]);
-    if (showNotesResult.code === 0) {
-      console.log(showNotesResult.stdout);
-    } else {
-      console.log('❌ Could not display notes (this should not happen)');
-    }
-    console.log('─'.repeat(50));
     
     console.log('✅ Successfully applied Claude notes to merge commit');
     
