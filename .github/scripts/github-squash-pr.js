@@ -92,7 +92,22 @@ async function main() {
     const existingFiles = {};
     for (const [filepath, lineSet] of Object.entries(claudeLineMapping)) {
       try {
-        const fileContent = await readFile(join(process.cwd(), filepath), 'utf-8');
+        // Convert absolute paths to relative paths for GitHub Actions environment
+        let relativePath = filepath;
+        if (filepath.startsWith('/')) {
+          // Extract relative path from absolute path (everything after the last occurrence of the repo name)
+          const repoName = 'claude-was-here';
+          const repoIndex = filepath.lastIndexOf('/' + repoName + '/');
+          if (repoIndex !== -1) {
+            relativePath = filepath.substring(repoIndex + repoName.length + 2);
+          } else {
+            // Fallback: try to extract path after common patterns
+            relativePath = filepath.replace(/^.*\/([^\/]+\/[^\/]+\.(ts|js|md|txt|json).*?)$/, '$1');
+          }
+        }
+        
+        console.log(`📁 Processing file: ${filepath} -> ${relativePath}`);
+        const fileContent = await readFile(join(process.cwd(), relativePath), 'utf-8');
         const totalLines = fileContent.split('\n').length;
         
         const validLines = new Set();
@@ -103,7 +118,7 @@ async function main() {
         }
         
         if (validLines.size > 0) {
-          existingFiles[filepath] = validLines;
+          existingFiles[relativePath] = validLines;
         }
       } catch (error) {
         console.warn(`⚠️  Skipping ${filepath} - file not found in final version`);
