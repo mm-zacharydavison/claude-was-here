@@ -160,7 +160,11 @@ jobs:
           echo "Base commit: \$BASE_COMMIT"
           
           # Use claude-was-here to apply consolidated notes to the squashed commit
-          bun run .github/scripts/github-squash-pr.js --data-file "./artifacts/claude-notes-data.json" --base "\$BASE_COMMIT" --merge "\$MERGE_COMMIT"`;
+          bun run .github/scripts/github-squash-pr.js --data-file "./artifacts/claude-notes-data.json" --base "\$BASE_COMMIT" --merge "\$MERGE_COMMIT"
+          
+          # Show what notes were added for debugging
+          echo "📝 Git notes added to commit \$MERGE_COMMIT:"
+          git notes show "\$MERGE_COMMIT" || echo "No notes found"`;
 
 export async function installGitHubActions(): Promise<void> {
   const workflowsDir = join(process.cwd(), '.github', 'workflows');
