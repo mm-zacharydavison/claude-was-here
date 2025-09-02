@@ -1,0 +1,11 @@
+claude-was-here
+version: 1.1
+/home/z/Desktop/work/claude-was-here/.github/workflows/preserve-claude-notes-pre.yml: 21-25
+/home/z/Desktop/work/claude-was-here/src/utils/git.ts: 35-37, 40, 42-43, 49, 51-52
+/home/z/Desktop/work/claude-was-here/src/commands/github-actions.ts: 56, 126, 132
+/home/z/Desktop/work/claude-was-here/src/commands/install-github-actions.ts: 26-30
+/home/z/Desktop/work/claude-was-here/CLAUDE.md: 61
+/home/z/Desktop/work/claude-was-here/tests/stats.test.ts: 55
+/home/z/Desktop/work/claude-was-here/tests/post-commit.test.ts: 52
+/home/z/Desktop/work/claude-was-here/tests/authorship-rollup.test.ts: 36
+/home/z/Desktop/work/claude-was-here/tests/github-squashing.test.ts: 106, 117, 194, 205, 216, 254
