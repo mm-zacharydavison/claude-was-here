@@ -11,7 +11,7 @@ on:
     types: [opened, synchronize]
 
 jobs:
-  collect-claude-notes:
+  collect-claude-was-here-notes:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,7 +64,7 @@ on:
     types: [closed]
 
 jobs:
-  attach-claude-notes:
+  attach-claude-was-here-notes:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:

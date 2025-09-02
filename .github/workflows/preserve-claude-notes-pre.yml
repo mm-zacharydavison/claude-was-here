@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize]
 
 jobs:
-  collect-claude-notes:
+  collect-claude-was-here-notes:
     runs-on: ubuntu-latest
     permissions:
       contents: read

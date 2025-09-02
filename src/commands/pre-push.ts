@@ -15,11 +15,11 @@ export async function prePushHook(): Promise<void> {
     
     let pushOutput = '';
     let pushError = '';
-    pushProc.stdout?.on('data', (data) => pushOutput += data.toString());
-    pushProc.stderr?.on('data', (data) => pushError += data.toString());
+    pushProc.stdout?.on('data', (data: Buffer) => pushOutput += data.toString());
+    pushProc.stderr?.on('data', (data: Buffer) => pushError += data.toString());
     
     await new Promise((resolve) => {
-      pushProc.on('close', (code) => {
+      pushProc.on('close', (code: number | null) => {
         if (code === 0) {
           logger.log('[claude-was-here] 📤 Pushed git notes to remote.');
         } else {
