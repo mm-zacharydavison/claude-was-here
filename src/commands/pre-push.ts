@@ -21,14 +21,14 @@ export async function prePushHook(): Promise<void> {
     await new Promise((resolve) => {
       pushProc.on('close', (code) => {
         if (code === 0) {
-          logger.log('📤 Pushed git notes to remote');
+          logger.log('[claude-was-here] 📤 Pushed git notes to remote.');
         } else {
-          logger.warn(`⚠️  Could not push git notes: ${pushError}`);
+          logger.warn(`[claude-was-here] ⚠️ Could not push git notes: ${pushError}`);
         }
         resolve(undefined);
       });
     });
   } catch (error) {
-    logger.warn('⚠️  Could not push git notes to remote:', error);
+    logger.warn('[claude-was-here] ⚠️ Could not push git notes to remote:', error);
   }
 }
