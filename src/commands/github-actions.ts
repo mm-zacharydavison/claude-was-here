@@ -41,8 +41,8 @@ interface ClaudeLineMapping {
  */
 export async function githubSynchronizePR(baseCommit: string, headCommit: string): Promise<void> {
   try {
-    // Get all commits in the range
-    const commitsResult = await execGitCommand(['log', '--format=%H', `${baseCommit}..${headCommit}`]);
+    // Get all commits in the range (use --first-parent to avoid including merged commits from other branches)
+    const commitsResult = await execGitCommand(['log', '--first-parent', '--format=%H', `${baseCommit}..${headCommit}`]);
     if (!commitsResult || commitsResult.code !== 0) {
       throw new Error(`Failed to get commits: ${commitsResult?.stderr || 'Unknown error'}`);
     }
