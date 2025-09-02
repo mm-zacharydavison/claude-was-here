@@ -77,12 +77,52 @@ jobs:
           fetch-depth: 0
           ref: \${{ github.event.pull_request.base.ref }}  # Checkout the target branch
           
-      - name: Download Claude notes artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: claude-notes-pr-\${{ github.event.number }}
-          path: ./artifacts/
-        continue-on-error: true
+      - name: Find and download Claude notes artifact
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find the most recent workflow run for this PR that created the artifact
+          ARTIFACT_NAME="claude-notes-pr-\${{ github.event.number }}"
+          echo "Looking for artifact: \$ARTIFACT_NAME"
+          
+          # Get the workflow runs for pull_request events on this PR
+          WORKFLOW_RUNS=\$(gh api repos/\${{ github.repository }}/actions/runs \\
+            --jq '.workflow_runs[] | select(.event == "pull_request" and .head_sha == "\${{ github.event.pull_request.head.sha }}") | .id' \\
+            | head -10)
+          
+          echo "Found workflow runs: \$WORKFLOW_RUNS"
+          
+          # Try to find and download the artifact from each run
+          mkdir -p ./artifacts/
+          FOUND=false
+          
+          for run_id in \$WORKFLOW_RUNS; do
+            echo "Checking run \$run_id for artifacts..."
+            
+            # Get the artifact ID for this run
+            artifact_id=\$(gh api repos/\${{ github.repository }}/actions/runs/\$run_id/artifacts --jq '.artifacts[] | select(.name == "'\$ARTIFACT_NAME'") | .id' | head -1)
+            
+            if [ -n "\$artifact_id" ]; then
+              echo "Found artifact \$artifact_id in run \$run_id, downloading..."
+              
+              # Download the artifact
+              if gh api repos/\${{ github.repository }}/actions/artifacts/\$artifact_id/zip > artifact.zip 2>/dev/null && [ -s artifact.zip ]; then
+                unzip -q artifact.zip -d ./artifacts/
+                echo "Successfully downloaded and extracted artifact"
+                FOUND=true
+                break
+              else
+                echo "Failed to download artifact \$artifact_id"
+              fi
+            else
+              echo "No matching artifact found in run \$run_id"
+            fi
+          done
+          
+          if [ "\$FOUND" = "false" ]; then
+            echo "No Claude notes artifact found for PR \${{ github.event.number }}"
+            echo "This might mean there were no Claude Code contributions in this PR"
+          fi
         
       - name: Check if Claude notes exist
         id: check-notes
@@ -104,6 +144,10 @@ jobs:
       - name: Apply consolidated Claude notes to squashed commit
         if: steps.check-notes.outputs.notes_exist == 'true'
         run: |
+          # Configure git user for creating notes
+          git config --local user.name "claude-was-here[bot]"
+          git config --local user.email "claude-was-here[bot]@users.noreply.github.com"
+          
           # Get the latest commit (should be the merge/squash commit)
           MERGE_COMMIT=\$(git rev-parse HEAD)
           echo "Merge commit: \$MERGE_COMMIT"
