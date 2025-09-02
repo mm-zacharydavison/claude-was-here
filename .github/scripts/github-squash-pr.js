@@ -146,21 +146,31 @@ async function main() {
     
     // Fetch remote notes to avoid conflicts
     console.log('📡 Fetching remote notes...');
-    const fetchResult = await execGitCommand(['fetch', 'origin', 'refs/notes/commits:refs/notes/commits']);
-    if (fetchResult.code !== 0) {
+    const fetchResult = await execGitCommand(['fetch', 'origin', '+refs/notes/commits:refs/notes/remotes/origin/commits']);
+    if (fetchResult.code === 0) {
+      console.log('✅ Fetched remote notes successfully');
+      
+      // Try to merge remote notes
+      const mergeResult = await execGitCommand(['notes', 'merge', 'refs/notes/remotes/origin/commits']);
+      if (mergeResult.code === 0) {
+        console.log('✅ Merged remote notes successfully');
+      } else {
+        console.log('ℹ️  No notes merge needed or conflicts (this is normal)');
+      }
+    } else {
       console.log('ℹ️  No remote notes to fetch (this is normal for new repositories)');
     }
     
-    // Try to merge remote notes if they exist
-    const mergeResult = await execGitCommand(['notes', 'merge', 'refs/notes/commits']);
-    if (mergeResult.code !== 0) {
-      console.log('ℹ️  No notes merge needed');
-    }
-    
-    // Push the notes
-    const pushResult = await execGitCommand(['push', 'origin', 'refs/notes/commits']);
+    // Push the notes with force if needed
+    let pushResult = await execGitCommand(['push', 'origin', 'refs/notes/commits']);
     if (pushResult.code !== 0) {
-      console.warn('⚠️  Warning: Could not push git notes to remote:', pushResult.stderr);
+      console.log('⚠️  Regular push failed, trying with force...');
+      pushResult = await execGitCommand(['push', '--force', 'origin', 'refs/notes/commits']);
+      if (pushResult.code !== 0) {
+        console.warn('⚠️  Warning: Could not push git notes to remote:', pushResult.stderr);
+      } else {
+        console.log('📤 Successfully force-pushed git notes to remote');
+      }
     } else {
       console.log('📤 Successfully pushed git notes to remote');
     }
