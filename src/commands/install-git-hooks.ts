@@ -90,6 +90,10 @@ export async function installGitHooks(): Promise<void> {
   const postCommitHook = join(gitHooksDir, 'post-commit');
   await installHookWithPreservation(postCommitHook, 'claude-was-here post-commit');
   
+  // Install pre-push hook
+  const prePushHook = join(gitHooksDir, 'pre-push');
+  await installHookWithPreservation(prePushHook, 'claude-was-here pre-push');
+  
   // Install post-merge hook to fetch notes after pull/merge
   const postMergeHook = join(gitHooksDir, 'post-merge');
   await installHookWithPreservation(postMergeHook, 'git fetch origin +refs/notes/commits:refs/notes/commits 2>/dev/null || true');
