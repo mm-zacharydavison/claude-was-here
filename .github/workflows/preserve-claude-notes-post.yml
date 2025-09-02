@@ -85,6 +85,10 @@ jobs:
       - name: Apply consolidated Claude notes to squashed commit
         if: steps.check-notes.outputs.notes_exist == 'true'
         run: |
+          # Configure git user for creating notes
+          git config --local user.name "claude-was-here[bot]"
+          git config --local user.email "claude-was-here[bot]@users.noreply.github.com"
+          
           # Get the latest commit (should be the merge/squash commit)
           MERGE_COMMIT=$(git rev-parse HEAD)
           echo "Merge commit: $MERGE_COMMIT"
