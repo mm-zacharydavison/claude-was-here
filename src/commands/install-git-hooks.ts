@@ -89,6 +89,10 @@ export async function installGitHooks(): Promise<void> {
   const postCommitHook = join(gitHooksDir, 'post-commit');
   await installHookWithPreservation(postCommitHook, 'claude-was-here post-commit');
   
+  // Install post-merge hook to fetch notes after pull/merge
+  const postMergeHook = join(gitHooksDir, 'post-merge');
+  await installHookWithPreservation(postMergeHook, 'git fetch origin +refs/notes/commits:refs/notes/commits 2>/dev/null || true');
+  
   // Configure git to automatically push notes
   await configureGitPushForNotes();
   
