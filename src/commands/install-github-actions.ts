@@ -148,6 +148,9 @@ jobs:
           git config --local user.name "claude-was-here[bot]"
           git config --local user.email "claude-was-here[bot]@users.noreply.github.com"
           
+          # Fetch existing notes from remote to avoid conflicts
+          git fetch origin refs/notes/commits:refs/notes/commits || echo "No existing notes to fetch"
+          
           # Get the latest commit (should be the merge/squash commit)
           MERGE_COMMIT=\$(git rev-parse HEAD)
           echo "Merge commit: \$MERGE_COMMIT"
