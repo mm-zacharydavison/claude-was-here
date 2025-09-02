@@ -19,9 +19,9 @@ jobs:
           
       - name: Fetch git notes
         run: |
-          # Fetch default git notes if they exist
+          # Fetch default git notes if they exist (using force flag to ensure we get updates)
           echo "Attempting to fetch git notes..."
-          git fetch origin refs/notes/commits:refs/notes/commits 2>/dev/null || echo "No git notes found in origin"
+          git fetch origin +refs/notes/commits:refs/notes/commits 2>/dev/null || echo "No git notes found in origin"
           
           # List all notes refs to see what's available
           echo "Available notes refs:"
@@ -31,11 +31,16 @@ jobs:
           echo "Checking for existing notes on recent commits..."
           git log --oneline --notes=commits -n 5 || echo "No notes found on recent commits"
           
-          # Test if we can access notes for specific commits
-          echo "Testing note access for specific commits..."
-          git log --format="%H" -n 10 | while read commit; do
+          # Test if we can access notes for the specific commits that will be processed
+          echo "Testing note access for commits in this PR..."
+          BASE_COMMIT=$(git merge-base HEAD origin/${{ github.base_ref }})
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          echo "Will process commits between $BASE_COMMIT and $HEAD_COMMIT"
+          
+          git log --format="%H" "$BASE_COMMIT..$HEAD_COMMIT" | while read commit; do
             if git notes show "$commit" 2>/dev/null; then
               echo "✅ Found notes for commit $commit"
+              git notes show "$commit" | head -3
             else
               echo "❌ No notes for commit $commit"
             fi
