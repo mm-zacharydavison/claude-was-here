@@ -1,4 +1,5 @@
 import { readFile, rm } from 'fs/promises';
+import { relative } from 'path';
 import { 
   WorkingTrackingData, 
   FileChangeRecord, 
@@ -160,6 +161,19 @@ async function processFileAuthorship(records: FileChangeRecord[], filePath: stri
 }
 
 /**
+ * Converts absolute path to relative path from git repo root
+ */
+function toRelativePath(filePath: string): string {
+  // If already relative, return as-is
+  if (!filePath.startsWith('/')) {
+    return filePath;
+  }
+  
+  // Convert absolute path to relative path from current working directory (git repo root)
+  return relative(process.cwd(), filePath);
+}
+
+/**
  * Formats commit authorship data as human-readable text
  */
 function formatCommitNote(data: CommitAuthorshipData): string {
@@ -171,7 +185,8 @@ function formatCommitNote(data: CommitAuthorshipData): string {
         .map(range => range.start === range.end ? `${range.start}` : `${range.start}-${range.end}`)
         .join(', ');
       
-      note += `${fileInfo.filePath}: ${ranges}\n`;
+      const relativePath = toRelativePath(fileInfo.filePath);
+      note += `${relativePath}: ${ranges}\n`;
     }
   }
   
