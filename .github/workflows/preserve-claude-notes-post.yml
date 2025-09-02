@@ -40,12 +40,14 @@ jobs:
           for run_id in $WORKFLOW_RUNS; do
             echo "Checking run $run_id for artifacts..."
             
-            # Check if this run has our artifact
-            if gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts --jq '.artifacts[] | select(.name == "'$ARTIFACT_NAME'") | .id' | head -1 | read artifact_id; then
+            # Get the artifact ID for this run
+            artifact_id=$(gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts --jq '.artifacts[] | select(.name == "'$ARTIFACT_NAME'") | .id' | head -1)
+            
+            if [ -n "$artifact_id" ]; then
               echo "Found artifact $artifact_id in run $run_id, downloading..."
               
               # Download the artifact
-              if gh api repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip > artifact.zip 2>/dev/null; then
+              if gh api repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip > artifact.zip 2>/dev/null && [ -s artifact.zip ]; then
                 unzip -q artifact.zip -d ./artifacts/
                 echo "Successfully downloaded and extracted artifact"
                 FOUND=true
@@ -53,6 +55,8 @@ jobs:
               else
                 echo "Failed to download artifact $artifact_id"
               fi
+            else
+              echo "No matching artifact found in run $run_id"
             fi
           done
           
