@@ -52,7 +52,7 @@ describe('claude-was-here stats', () => {
   }
 
   async function addGitNote(commitHash: string, noteText: string): Promise<void> {
-    await execCommand('git', ['notes', '--ref', 'claude-was-here', 'add', '-m', noteText, commitHash], testDir);
+    await execCommand('git', ['notes', 'add', '-m', noteText, commitHash], testDir);
   }
 
   async function getCurrentCommit(): Promise<string> {

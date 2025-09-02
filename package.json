@@ -1,13 +1,14 @@
 {
   "name": "@zdavison/claude-was-here",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "description": "Track lines changed by Claude Code using git hooks and git notes",
   "main": "dist/cli.js",
   "bin": {
     "claude-was-here": "dist/cli.js"
   },
   "scripts": {
-    "build": "bun build src/cli.ts --outdir dist --target bun --format esm",
+    "build": "bun build src/cli.ts --outdir dist --target bun --format esm && bun run build:scripts",
+    "build:scripts": "bun build src/scripts/github-synchronize-pr.ts --outdir dist/scripts --target bun --format esm && bun build src/scripts/github-squash-pr.ts --outdir dist/scripts --target bun --format esm",
     "build:binary": "bun run build && bun build src/cli.ts --compile --outfile claude-was-here",
     "dev": "bun run src/cli.ts",
     "init": "bun run src/cli.ts init",

@@ -58,7 +58,7 @@ claude-was-here scrub --force
 ### Data Storage
 
 - **Temporary Metadata**: `.claude/was-here/` directory stores individual file change records as JSON
-- **Git Notes**: Permanent storage using `refs/notes/claude-was-here` with structured JSON format containing line ranges
+- **Git Notes**: Permanent storage using default git notes (`refs/notes/commits`) with structured format containing line ranges
 - **Note Format**: Each commit's note contains version info and file-to-line-range mappings
 
 ### GitHub Integration

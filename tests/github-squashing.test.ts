@@ -37,27 +37,27 @@ describe('claude-was-here install-github-actions', () => {
     // Run the install command
     await installGitHubActions();
     
-    // Check that the workflow files were created
+    // Check that the workflow files and scripts were created
     expect(existsSync(join(testDir, '.github', 'workflows', 'preserve-claude-notes-pre.yml'))).toBe(true);
     expect(existsSync(join(testDir, '.github', 'workflows', 'preserve-claude-notes-post.yml'))).toBe(true);
-    
-    // Verify no scripts directory is created since we use bunx
-    expect(existsSync(join(testDir, '.github', 'scripts'))).toBe(false);
+    expect(existsSync(join(testDir, '.github', 'scripts', 'github-synchronize-pr.js'))).toBe(true);
+    expect(existsSync(join(testDir, '.github', 'scripts', 'github-squash-pr.js'))).toBe(true);
   });
 
-  test('WILL not require claude-was-here to be installed (workflows use bunx for runtime installation)', async () => {
+  test('WILL not require claude-was-here to be installed (workflows use bundled scripts)', async () => {
     await installGitHubActions();
     
-    // Check that the workflows use bunx to run claude-was-here commands
+    // Check that the workflows use bundled scripts
     const preWorkflowContent = await readFile(join(testDir, '.github', 'workflows', 'preserve-claude-notes-pre.yml'), 'utf-8');
     const postWorkflowContent = await readFile(join(testDir, '.github', 'workflows', 'preserve-claude-notes-post.yml'), 'utf-8');
     
-    // Verify workflows use bunx to install and run claude-was-here commands
-    expect(preWorkflowContent).toContain('bunx @zdavison/claude-was-here@latest github-synchronize-pr');
-    expect(postWorkflowContent).toContain('bunx @zdavison/claude-was-here@latest github-squash-pr');
+    // Verify workflows use bundled scripts
+    expect(preWorkflowContent).toContain('bun run .github/scripts/github-synchronize-pr.js');
+    expect(postWorkflowContent).toContain('bun run .github/scripts/github-squash-pr.js');
     
-    // Verify no local scripts are needed
-    expect(existsSync(join(testDir, '.github', 'scripts'))).toBe(false);
+    // Verify local scripts were created
+    expect(existsSync(join(testDir, '.github', 'scripts', 'github-synchronize-pr.js'))).toBe(true);
+    expect(existsSync(join(testDir, '.github', 'scripts', 'github-squash-pr.js'))).toBe(true);
   });
 });
 
@@ -103,7 +103,7 @@ describe('GitHub Action: Pull Request [opened, synchronize]', () => {
     
     // Add Claude note to commit 1
     const note1Text = 'claude-was-here\nversion: 1.1\nfile1.ts: 1-2';
-    await execCommand('git', ['notes', '--ref', 'claude-was-here', 'add', '-m', note1Text, commit1Hash], testDir);
+    await execCommand('git', ['notes', 'add', '-m', note1Text, commit1Hash], testDir);
     
     // Commit 2: Create file2.ts with Claude notes
     await writeFile(join(testDir, 'file2.ts'), 'function test() {\n  return true;\n}\n');
@@ -114,7 +114,7 @@ describe('GitHub Action: Pull Request [opened, synchronize]', () => {
     
     // Add Claude note to commit 2
     const note2Text = 'claude-was-here\nversion: 1.1\nfile2.ts: 1-3';
-    await execCommand('git', ['notes', '--ref', 'claude-was-here', 'add', '-m', note2Text, commit2Hash], testDir);
+    await execCommand('git', ['notes', 'add', '-m', note2Text, commit2Hash], testDir);
     
     // Get the base commit (main branch) - use master instead of HEAD~2
     const baseCommit = (await execCommand('git', ['merge-base', 'feature-branch', 'master'], testDir)).stdout;
@@ -191,7 +191,7 @@ describe('GitHub Action: Pull Request [closed (merged)]', () => {
     
     // Add Claude note to commit 1 (Claude authored lines 2-4: the function definition)
     const note1Text = 'claude-was-here\nversion: 1.1\nfeature.ts: 2-4';
-    await execCommand('git', ['notes', '--ref', 'claude-was-here', 'add', '-m', note1Text, commit1Hash], testDir);
+    await execCommand('git', ['notes', 'add', '-m', note1Text, commit1Hash], testDir);
     
     // Commit 2: Add more functionality, Claude authors lines 5-7
     const extendedContent = `// Header comment\nexport function feature() {\n  console.log("starting");\n  return "v1";\n}\n\n// Added by Claude\nexport function helper() {\n  return "helper";\n}`;
@@ -202,7 +202,7 @@ describe('GitHub Action: Pull Request [closed (merged)]', () => {
     
     // Add Claude note to commit 2 (Claude authored the new lines 7-9)
     const note2Text = 'claude-was-here\nversion: 1.1\nfeature.ts: 7-9';
-    await execCommand('git', ['notes', '--ref', 'claude-was-here', 'add', '-m', note2Text, commit2Hash], testDir);
+    await execCommand('git', ['notes', 'add', '-m', note2Text, commit2Hash], testDir);
     
     // Commit 3: Claude modifies line 4 (changing return value) 
     const modifiedContent = `// Header comment\nexport function feature() {\n  console.log("starting");\n  return "v2"; // Updated by Claude\n}\n\n// Added by Claude\nexport function helper() {\n  return "helper";\n}`;
@@ -213,7 +213,7 @@ describe('GitHub Action: Pull Request [closed (merged)]', () => {
     
     // Add Claude note to commit 3 (Claude modified line 4)
     const note3Text = 'claude-was-here\nversion: 1.1\nfeature.ts: 4';
-    await execCommand('git', ['notes', '--ref', 'claude-was-here', 'add', '-m', note3Text, commit3Hash], testDir);
+    await execCommand('git', ['notes', 'add', '-m', note3Text, commit3Hash], testDir);
     
     // Switch back to main and create a squashed merge commit
     await execCommand('git', ['checkout', 'master'], testDir);
@@ -251,7 +251,7 @@ describe('GitHub Action: Pull Request [closed (merged)]', () => {
     expect(result.code).toBe(0);
     
     // Verify the consolidated git note has the correct line ranges
-    const noteResult = await execCommand('git', ['notes', '--ref', 'claude-was-here', 'show', mergeCommitHash], testDir);
+    const noteResult = await execCommand('git', ['notes', 'show', mergeCommitHash], testDir);
     expect(noteResult.code).toBe(0);
     
     // Parse the note content to verify structure
