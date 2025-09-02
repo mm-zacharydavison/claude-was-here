@@ -59,7 +59,12 @@ jobs:
           
       - name: Collect and consolidate Claude notes
         run: |
-          bun run .github/scripts/github-synchronize-pr.js --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"
+          echo "🔍 Collecting Claude notes for PR..."
+          if ! bun run .github/scripts/github-synchronize-pr.js --base "${{ steps.commits.outputs.base_commit }}" --head "${{ steps.commits.outputs.head_commit }}"; then
+            echo "❌ Failed to collect Claude notes"
+            exit 1
+          fi
+          echo "✅ Successfully collected Claude notes"
           
       - name: Upload Claude notes data as artifact
         if: hashFiles('claude-notes-data.json') != ''
@@ -68,3 +73,14 @@ jobs:
           name: claude-notes-pr-${{ github.event.number }}
           path: claude-notes-data.json
           retention-days: 30
+          
+      - name: Report completion status
+        run: |
+          if [ -f "claude-notes-data.json" ]; then
+            echo "🎉 Claude notes preservation completed successfully"
+            echo "📦 Artifact uploaded for PR merge processing"
+          else
+            echo "ℹ️  No Claude contributions found in this PR"
+            echo "✅ Workflow completed successfully (no action needed)"
+          fi
+          echo "🟢 PR is ready for merge - Claude notes workflow passed"

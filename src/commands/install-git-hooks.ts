@@ -31,28 +31,43 @@ async function configureGitPushForNotes(): Promise<void> {
   
   try {
     // Check if push refspecs are already configured
-    const { stdout } = await execGitCommandWithResult(['config', '--get-all', 'remote.origin.push']);
-    const currentRefspecs = stdout ? stdout.split('\n').filter(line => line.trim()) : [];
+    const { stdout: pushRefspecs } = await execGitCommandWithResult(['config', '--get-all', 'remote.origin.push']);
+    const currentPushRefspecs = pushRefspecs ? pushRefspecs.split('\n').filter(line => line.trim()) : [];
+    
+    // Check if fetch refspecs are already configured
+    const { stdout: fetchRefspecs } = await execGitCommandWithResult(['config', '--get-all', 'remote.origin.fetch']);
+    const currentFetchRefspecs = fetchRefspecs ? fetchRefspecs.split('\n').filter(line => line.trim()) : [];
     
     // Check if notes refspec is already present
     const notesRefspec = '+refs/notes/commits:refs/notes/commits';
-    if (currentRefspecs.includes(notesRefspec)) {
-      console.log('✅ Git notes auto-push already configured');
+    const pushAlreadyConfigured = currentPushRefspecs.includes(notesRefspec);
+    const fetchAlreadyConfigured = currentFetchRefspecs.includes(notesRefspec);
+    
+    if (pushAlreadyConfigured && fetchAlreadyConfigured) {
+      console.log('✅ Git notes auto-push and auto-fetch already configured');
       return;
     }
     
     // If no push refspecs are configured, set up the standard ones
-    if (currentRefspecs.length === 0) {
+    if (currentPushRefspecs.length === 0) {
       await execGitCommandWithResult(['config', 'remote.origin.push', '+refs/heads/*:refs/heads/*']);
     }
     
-    // Add the notes refspec
-    await execGitCommandWithResult(['config', '--add', 'remote.origin.push', notesRefspec]);
-    console.log('✅ Git configured to auto-push notes with regular pushes');
+    // Add the notes refspec for pushing if not already configured
+    if (!pushAlreadyConfigured) {
+      await execGitCommandWithResult(['config', '--add', 'remote.origin.push', notesRefspec]);
+    }
+    
+    // Configure automatic fetching of notes if not already configured
+    if (!fetchAlreadyConfigured) {
+      await execGitCommandWithResult(['config', '--add', 'remote.origin.fetch', notesRefspec]);
+    }
+    
+    console.log('✅ Git configured to auto-push and auto-fetch notes');
     
   } catch (error) {
     // If git config fails (e.g., no remote named origin), warn but don't fail
-    console.log('⚠️  Could not configure automatic notes pushing (no origin remote?)');
+    console.log('⚠️  Could not configure automatic notes push/fetch (no origin remote?)');
   }
 }
 
