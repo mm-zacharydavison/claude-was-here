@@ -12,7 +12,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useVisualizationStore } from '../lib/store';
-import { fetchFileWithAuthorship, FileWithAuthorship } from '../lib/api';
+import { fetchFileWithAuthorship, FileWithAuthorship, fetchRollupAuthorship, RollupAuthorshipResult } from '../lib/api';
 import { MiniEditor } from './MiniEditor';
 
 // Custom node component for commits with file content
@@ -90,6 +90,81 @@ const CommitFileNode: React.FC<NodeProps> = ({ data }) => {
   );
 };
 
+// Custom node component for rollup state
+const RollupStateNode: React.FC<NodeProps> = ({ data }) => {
+  return (
+    <div style={{
+      background: 'white',
+      border: '3px solid #f59e0b',
+      borderRadius: '12px',
+      padding: '12px',
+      width: '800px', // Fixed width to match commit nodes
+      maxWidth: '800px',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ background: '#f59e0b' }} />
+      
+      {/* Header */}
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ 
+          fontSize: '12px', 
+          fontWeight: 'bold', 
+          marginBottom: '4px', 
+          color: '#92400e',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span>🎯 Rolled Up State</span>
+          <span style={{ 
+            background: '#f59e0b', 
+            color: 'white', 
+            padding: '2px 6px', 
+            borderRadius: '12px', 
+            fontSize: '9px' 
+          }}>
+            ALGORITHM
+          </span>
+        </div>
+        <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>
+          Consolidated authorship from {data.commitsProcessed || 0} commits
+        </div>
+        {data.rollupData && (
+          <div style={{ fontSize: '10px', color: '#374151', display: 'flex', gap: '12px' }}>
+            <span>AI: {data.rollupData.aiLines || 0} lines ({(data.rollupData.aiPercentage || 0).toFixed(1)}%)</span>
+            <span>Human: {data.rollupData.humanLines || 0} lines</span>
+          </div>
+        )}
+      </div>
+      
+      {/* File content */}
+      {data.fileData ? (
+        <MiniEditor
+          lines={data.fileData.lines}
+          fileName={data.fileName || 'file'}
+          maxLines={undefined}
+          showLineNumbers={true}
+          highlightChanges={false}
+        />
+      ) : (
+        <div style={{
+          padding: '20px',
+          background: '#fef3c7',
+          border: '1px solid #f59e0b',
+          borderRadius: '6px',
+          textAlign: 'center',
+          fontSize: '12px',
+          color: '#92400e'
+        }}>
+          Loading rollup data...
+        </div>
+      )}
+      
+      <Handle type="source" position={Position.Right} style={{ background: '#f59e0b' }} />
+    </div>
+  );
+};
+
 // Custom node component for current file
 const CurrentFileNode: React.FC<NodeProps> = ({ data }) => {
   return (
@@ -160,6 +235,7 @@ const CurrentFileNode: React.FC<NodeProps> = ({ data }) => {
 // Register the custom node types
 const nodeTypes = {
   commitFile: CommitFileNode,
+  rollupState: RollupStateNode,
   currentFile: CurrentFileNode
 };
 
@@ -167,11 +243,13 @@ const nodeTypes = {
 export const CommitTimeline: React.FC = () => {
   const { commits, selectedFile } = useVisualizationStore();
   const [fileDataMap, setFileDataMap] = useState<Map<string, FileWithAuthorship>>(new Map());
+  const [rollupData, setRollupData] = useState<RollupAuthorshipResult | null>(null);
   
   // Load file data for all relevant commits and current state
   useEffect(() => {
     if (!selectedFile) {
       setFileDataMap(new Map());
+      setRollupData(null);
       return;
     }
     
@@ -183,6 +261,10 @@ export const CommitTimeline: React.FC = () => {
         // Load current file state
         const currentFileData = await fetchFileWithAuthorship(selectedFile);
         newFileDataMap.set('current', currentFileData);
+        
+        // Load rollup data
+        const rollupResult = await fetchRollupAuthorship(selectedFile);
+        setRollupData(rollupResult);
         
         // Load file data for each commit
         for (const commit of filteredCommits) {
@@ -198,6 +280,7 @@ export const CommitTimeline: React.FC = () => {
         console.log('Loaded file data for', selectedFile, ':', {
           currentLines: newFileDataMap.get('current')?.lines.length,
           commitsWithData: Array.from(newFileDataMap.keys()).filter(k => k !== 'current'),
+          rollupData: rollupResult,
           currentFileData: newFileDataMap.get('current')
         });
       } catch (error) {
@@ -366,11 +449,29 @@ export const CommitTimeline: React.FC = () => {
       });
     });
     
-    // Add current file node with content
+    // Add rollup state node - positioned between last commit and current file
+    nodes.push({
+      id: 'rollup-state',
+      type: 'rollupState',
+      position: { x: relevantCommits.length * 900, y: 50 }, // Between commits and current
+      data: {
+        fileName: selectedFile.split('/').pop() || selectedFile,
+        fullPath: selectedFile,
+        rollupData: rollupData,
+        commitsProcessed: rollupData?.commitsProcessed,
+        fileData: rollupData ? {
+          lines: rollupData.lines,
+          totalLines: rollupData.totalLines,
+          filepath: rollupData.filepath
+        } : null
+      }
+    });
+    
+    // Add current file node with content - now positioned after rollup
     nodes.push({
       id: 'current-file',
       type: 'currentFile',
-      position: { x: relevantCommits.length * 900, y: 50 }, // Aligned at top
+      position: { x: (relevantCommits.length + 1) * 900, y: 50 }, // After rollup node
       data: {
         fileName: selectedFile.split('/').pop() || selectedFile,
         fullPath: selectedFile,
@@ -379,7 +480,7 @@ export const CommitTimeline: React.FC = () => {
     });
     
     return nodes;
-  }, [selectedFile, commits, fileDataMap]);
+  }, [selectedFile, commits, fileDataMap, rollupData]);
   
   const [nodesState, setNodesState, onNodesChange] = useNodesState([]);
   const [edgesState, , onEdgesChange] = useEdgesState([]);
@@ -401,16 +502,36 @@ export const CommitTimeline: React.FC = () => {
           style: { stroke: commit.authorshipData ? '#3b82f6' : '#94a3b8', strokeWidth: 2 }
         });
       } else {
-        // Connect last commit to current file
+        // Connect last commit to rollup state
         edges.push({
-          id: `edge-${index}-current`,
+          id: `edge-${index}-rollup`,
           source: commit.id,
-          target: 'current-file',
-          animated: true,
-          style: { stroke: '#10b981', strokeWidth: 3, strokeDasharray: '5,5' }
+          target: 'rollup-state',
+          animated: false,
+          style: { stroke: '#f59e0b', strokeWidth: 3 }
         });
       }
     });
+    
+    // Connect rollup state to current file
+    edges.push({
+      id: 'edge-rollup-current',
+      source: 'rollup-state',
+      target: 'current-file',
+      animated: true,
+      style: { stroke: '#10b981', strokeWidth: 3, strokeDasharray: '5,5' }
+    });
+    
+    // If no commits, connect rollup directly to current (though rollup may be empty)
+    if (relevantCommits.length === 0) {
+      edges.push({
+        id: 'edge-rollup-current-only',
+        source: 'rollup-state',
+        target: 'current-file',
+        animated: true,
+        style: { stroke: '#10b981', strokeWidth: 3, strokeDasharray: '5,5' }
+      });
+    }
     
     return edges;
   }, [selectedFile, commits]);
@@ -450,6 +571,10 @@ export const CommitTimeline: React.FC = () => {
           edges={testEdges}
           fitView
           style={{ width: '100%', height: '100%' }}
+          nodesDraggable={true}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          panOnDrag={[1, 2]}
         >
           <Background />
           <Controls />
@@ -482,6 +607,10 @@ export const CommitTimeline: React.FC = () => {
         nodeTypes={nodeTypes}
         style={{ width: '100%', height: '100%', background: '#f9fafb' }}
         fitView={true}
+        nodesDraggable={true}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        panOnDrag={[1, 2]}
       >
         <Background color="#aaa" gap={16} />
         <Controls />

@@ -145,6 +145,56 @@ export async function createMixedCommit(options: {
 }
 
 /**
+ * Either a tuple '[21, 23]' to indicate a range, or a number '24' to indicate a line.
+ */
+export type LineRange = [number, number] | number
+
+/**
+ * Parses line ranges from git notes content for a specific file
+ * @param notesContent The full git notes content 
+ * @param filePath The file path to extract ranges for (e.g., 'src/service.ts')
+ * @returns Array of line range tuples found for the file
+ */
+export function parseLineRangesFromNotes(notesContent: string, filePath: string): LineRange[] {
+  const lines = notesContent.split('\n');
+  const ranges: LineRange[] = [];
+  
+  // Find the line that contains the file path
+  const fileLineRegex = new RegExp(`^${filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*(.+)$`);
+  
+  for (const line of lines) {
+    const match = line.match(fileLineRegex);
+    if (match) {
+      const rangeString = match[1].trim();
+      
+      // Parse comma-separated ranges like "1-5, 8, 12-15"
+      const rangeParts = rangeString.split(',').map(part => part.trim());
+      
+      for (const part of rangeParts) {
+        if (part.includes('-')) {
+          // Range like "1-5"
+          const [startStr, endStr] = part.split('-').map(s => s.trim());
+          const start = parseInt(startStr, 10);
+          const end = parseInt(endStr, 10);
+          if (!isNaN(start) && !isNaN(end)) {
+            ranges.push([start, end]);
+          }
+        } else {
+          // Single line like "8"
+          const line = parseInt(part, 10);
+          if (!isNaN(line)) {
+            ranges.push(line);
+          }
+        }
+      }
+      break; // Found the file, stop looking
+    }
+  }
+  
+  return ranges;
+}
+
+/**
  * Helper to create structured patch data from old and new content
  */
 function createStructuredPatch(oldContent: string, newContent: string) {

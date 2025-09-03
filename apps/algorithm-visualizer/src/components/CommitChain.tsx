@@ -106,6 +106,10 @@ export const CommitChain: React.FC = () => {
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
+        nodesDraggable={true}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        panOnDrag={[1, 2]}
       >
         <Background />
         <Controls />

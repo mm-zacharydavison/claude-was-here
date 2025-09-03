@@ -3,7 +3,7 @@ import { mkdtemp, writeFile, rm, readFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { execCommand } from '../helpers/exec.ts';
-import { writeAsHuman, writeAsClaude } from './helpers/code-authoring.ts';
+import { writeAsHuman, writeAsClaude, parseLineRangesFromNotes } from './helpers/code-authoring.ts';
 
 const isGhCliAvailable = async (): Promise<boolean> => {
   try {
@@ -267,9 +267,9 @@ describe('UserService', () => {
       console.log('\n⏳ Waiting for GitHub Actions...');
       await new Promise(resolve => setTimeout(resolve, 25000));
       
-      // Merge the PR
+      // Merge the PR (keeping the branch for inspection)
       console.log('\n🔀 Merging PR with squash...');
-      const mergeResult = await execCommand('gh', ['pr', 'merge', prNumber!, '--squash', '--delete-branch'], testDir);
+      const mergeResult = await execCommand('gh', ['pr', 'merge', prNumber!, '--squash'], testDir);
       expect(mergeResult.code).toBe(0);
       
       // Wait for post-merge workflow
@@ -295,12 +295,22 @@ describe('UserService', () => {
         });
         
         // Verify at least one Claude file is tracked
-        // TODO: Fix consolidation - should track both UserService.ts and UserService.test.ts
         expect(notesResult.stdout).toContain('UserService.ts');
+        expect(notesResult.stdout).toContain('UserService.test.ts');
         
         // Human files should not be tracked
         expect(notesResult.stdout).not.toContain('validation.ts');
         expect(notesResult.stdout).not.toContain('config.ts');
+
+        // Verify expected line attribution.
+        const aiAuthoredRanges = {
+          'UserService.ts': parseLineRangesFromNotes(notesResult.stdout, 'src/UserService.ts'),
+          'UserService.test.ts': parseLineRangesFromNotes(notesResult.stdout, 'src/UserService.test.ts')
+        }
+
+        expect(aiAuthoredRanges['UserService.ts']).toEqual([
+          // TODO: line range expectations.
+        ])
         
         console.log('✅ Both Claude contributions properly consolidated');
       }

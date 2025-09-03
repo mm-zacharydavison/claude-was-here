@@ -6,6 +6,7 @@
     "dev": "vite",
     "server": "bun run server.ts",
     "start": "concurrently \"bun run server\" \"bun run dev\"",
+    "kill": "pkill -f 'vite' && pkill -f 'server.ts'",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { constants } from 'fs';
 import { homedir } from 'os';
+import { rollupAuthorship, getFileStats } from '../../src/lib/authorship-rollup.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -536,6 +537,88 @@ app.get('/api/file-with-authorship/:filepath', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to get file with authorship' });
+  }
+});
+
+// Get rollup authorship data for a file
+app.get('/api/rollup-authorship/:filepath', async (req, res) => {
+  try {
+    const { filepath } = req.params;
+    
+    // Change to the repository directory to ensure git commands work properly
+    const originalCwd = process.cwd();
+    process.chdir(currentWorkingDirectory);
+    
+    try {
+      // Get rollup data from the authorship-rollup algorithm
+      const rollupResult = await rollupAuthorship();
+      const fileState = rollupResult.files.get(filepath);
+      
+      if (!fileState) {
+        // File not found in rollup data
+        res.json({
+          filepath,
+          totalLines: 0,
+          lines: []
+        });
+        return;
+      }
+      
+      // Get file stats
+      const stats = getFileStats(fileState);
+      
+      // Get current file content to build line-by-line data
+      let fileContent = '';
+      try {
+        const gitRoot = await getGitRoot();
+        const content = await readFile(path.join(gitRoot, filepath), 'utf-8');
+        fileContent = content;
+      } catch (error) {
+        console.warn(`Could not read current file content for ${filepath}:`, error.message);
+        fileContent = '';
+      }
+      
+      // Split content into lines and mark authorship based on rollup data
+      const lines = fileContent.split('\n');
+      const linesWithAuthorship = lines.map((content, index) => {
+        const lineNumber = index + 1;
+        const authorshipEntry = fileState.authorshipMap.get(lineNumber);
+        const isAiAuthored = authorshipEntry ? authorshipEntry.isAiAuthored : false;
+        
+        return {
+          lineNumber,
+          content,
+          isAiAuthored
+        };
+      });
+      
+      console.log(`Rollup authorship for ${filepath}:`, {
+        totalLines: stats.totalLines,
+        aiLines: stats.aiLines,
+        humanLines: stats.humanLines,
+        aiPercentage: stats.aiPercentage.toFixed(2) + '%',
+        rollupResult: {
+          totalCommitsProcessed: rollupResult.totalCommitsProcessed,
+          totalFiles: rollupResult.files.size
+        }
+      });
+      
+      res.json({
+        filepath,
+        totalLines: stats.totalLines,
+        aiLines: stats.aiLines,
+        humanLines: stats.humanLines,
+        aiPercentage: stats.aiPercentage,
+        commitsProcessed: rollupResult.totalCommitsProcessed,
+        lines: linesWithAuthorship
+      });
+    } finally {
+      // Restore original working directory
+      process.chdir(originalCwd);
+    }
+  } catch (error) {
+    console.error('Failed to get rollup authorship:', error);
+    res.status(500).json({ error: 'Failed to get rollup authorship data', details: error.message });
   }
 });
 

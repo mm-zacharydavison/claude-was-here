@@ -109,3 +109,19 @@ export async function fetchFileWithAuthorship(filePath: string, commit?: string)
   if (!response.ok) throw new Error('Failed to fetch file with authorship');
   return response.json();
 }
+
+export interface RollupAuthorshipResult {
+  filepath: string;
+  totalLines: number;
+  aiLines: number;
+  humanLines: number;
+  aiPercentage: number;
+  commitsProcessed: number;
+  lines: LineWithAuthorship[];
+}
+
+export async function fetchRollupAuthorship(filePath: string): Promise<RollupAuthorshipResult> {
+  const response = await fetch(`${API_BASE}/rollup-authorship/${encodeURIComponent(filePath)}`);
+  if (!response.ok) throw new Error('Failed to fetch rollup authorship');
+  return response.json();
+}

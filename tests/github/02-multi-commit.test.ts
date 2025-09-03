@@ -122,7 +122,7 @@ describe('Multi-Commit GitHub Test', () => {
       await new Promise(resolve => setTimeout(resolve, 20000));
       
       const prNumber = prResult.stdout.split('/').pop();
-      await execCommand('gh', ['pr', 'merge', prNumber!, '--squash', '--delete-branch'], testDir);
+      await execCommand('gh', ['pr', 'merge', prNumber!, '--squash'], testDir);
       
       // Verify merged notes
       await execCommand('git', ['checkout', 'master'], testDir);
