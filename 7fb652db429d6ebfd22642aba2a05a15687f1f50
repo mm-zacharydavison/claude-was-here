@@ -1,0 +1,8 @@
+claude-was-here
+version: 1.1
+src/utils/files.ts: 9, 23, 44, 48-52, 55, 58-60, 64, 70, 77-78, 86, 96
+src/commands/track-changes.ts: 37, 41, 76, 82, 107, 225, 252, 257, 277, 282
+tests/github/helpers/code-authoring.ts: 97-99
+tests/helpers/exec.ts: 12, 26-27, 29-37
+tests/github/03-complex-evolution.test.ts: 309, 316, 328, 333-342
+src/commands/post-commit.ts: 12, 35, 38, 45, 55-56, 71, 83, 106, 115, 136, 190, 203-204, 208, 212-213, 220-221, 227-228, 234, 238, 240-248, 251
