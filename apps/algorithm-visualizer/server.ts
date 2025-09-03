@@ -384,6 +384,161 @@ app.get('/api/authorship/:filepath', async (req, res) => {
   }
 });
 
+// Get file content and authorship for a specific commit
+app.get('/api/file-with-authorship/:filepath', async (req, res) => {
+  try {
+    const { filepath } = req.params;
+    const { commit } = req.query;
+    
+    // Get file content at commit
+    let fileContent = '';
+    try {
+      if (commit && commit !== 'current') {
+        const { stdout } = await execGitCommand(`git show ${commit}:"${filepath}"`);
+        fileContent = stdout;
+      } else {
+        const gitRoot = await getGitRoot();
+        const content = await readFile(path.join(gitRoot, filepath), 'utf-8');
+        fileContent = content;
+      }
+    } catch (error) {
+      // File might not exist at this commit
+      fileContent = '';
+    }
+    
+    // Get authorship data for this specific commit or current working state
+    let authorshipRanges = [];
+    if (commit && commit !== 'current') {
+      // For historical commits, check git notes
+      try {
+        const { stdout: noteText } = await execGitCommand(`git notes show ${commit}`);
+        const parsed = parseGitNote(noteText);
+        if (parsed) {
+          const fileData = parsed.files.find(f => f.filePath === filepath);
+          if (fileData) {
+            authorshipRanges = fileData.aiAuthoredRanges;
+          }
+        }
+      } catch {
+        // No authorship data for this commit
+      }
+    } else {
+      // For current working state, check .claude/was-here/working/tracking-data.json
+      try {
+        const gitRoot = await getGitRoot();
+        const trackingDataPath = path.join(gitRoot, '.claude', 'was-here', 'working', 'tracking-data.json');
+        console.log(`Looking for working state data:`, {
+          gitRoot,
+          trackingDataPath,
+          requestedFile: filepath,
+          fullRequestedPath: path.join(gitRoot, filepath)
+        });
+        
+        try {
+          const trackingData = JSON.parse(await readFile(trackingDataPath, 'utf-8'));
+          
+          if (trackingData.records && Array.isArray(trackingData.records)) {
+            // Find records for this specific file
+            const fileRecords = trackingData.records.filter(record => 
+              record.filePath === path.join(gitRoot, filepath)
+            );
+            
+            if (fileRecords.length > 0) {
+              console.log(`Found ${fileRecords.length} working state records for ${filepath}`);
+              
+              // Analyze line authorship from structured patches
+              const aiAuthoredLines = new Set();
+              
+              for (const record of fileRecords) {
+                if (record.structuredPatch && Array.isArray(record.structuredPatch)) {
+                  for (const hunk of record.structuredPatch) {
+                    // Process lines in the hunk to find AI-authored content
+                    let newLineNumber = hunk.newStart;
+                    
+                    for (const line of hunk.lines) {
+                      if (line.startsWith('+')) {
+                        // This is an added line (AI-authored)
+                        aiAuthoredLines.add(newLineNumber);
+                        newLineNumber++;
+                      } else if (line.startsWith(' ')) {
+                        // Context line
+                        newLineNumber++;
+                      }
+                      // Lines starting with '-' are removed, don't increment newLineNumber
+                    }
+                  }
+                }
+              }
+              
+              // Convert Set to ranges for efficiency
+              const sortedLines = Array.from(aiAuthoredLines).sort((a, b) => a - b);
+              authorshipRanges = [];
+              
+              if (sortedLines.length > 0) {
+                let rangeStart = sortedLines[0];
+                let rangeEnd = sortedLines[0];
+                
+                for (let i = 1; i < sortedLines.length; i++) {
+                  if (sortedLines[i] === rangeEnd + 1) {
+                    // Consecutive line, extend range
+                    rangeEnd = sortedLines[i];
+                  } else {
+                    // Gap found, close current range and start new one
+                    authorshipRanges.push({ start: rangeStart, end: rangeEnd });
+                    rangeStart = sortedLines[i];
+                    rangeEnd = sortedLines[i];
+                  }
+                }
+                // Add the final range
+                authorshipRanges.push({ start: rangeStart, end: rangeEnd });
+              }
+              
+              console.log(`Working state authorship for ${filepath}:`, {
+                aiAuthoredLines: sortedLines,
+                ranges: authorshipRanges
+              });
+            }
+          }
+        } catch (err) {
+          console.log('No tracking data found or invalid format:', err.message);
+        }
+      } catch (err) {
+        console.log('Error checking working state authorship:', err.message);
+      }
+    }
+    
+    // Split content into lines and mark authorship
+    const lines = fileContent.split('\n');
+    const linesWithAuthorship = lines.map((content, index) => {
+      const lineNumber = index + 1;
+      const isAiAuthored = authorshipRanges.some(range => 
+        lineNumber >= range.start && lineNumber <= range.end
+      );
+      
+      return {
+        lineNumber,
+        content,
+        isAiAuthored
+      };
+    });
+    
+    console.log(`File ${filepath} (commit: ${commit || 'current'}):`, {
+      totalLines: lines.length,
+      authorshipRanges,
+      aiAuthoredLines: linesWithAuthorship.filter(l => l.isAiAuthored).length
+    });
+    
+    res.json({
+      filepath,
+      commit: commit || 'current',
+      totalLines: lines.length,
+      lines: linesWithAuthorship
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get file with authorship' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`API server running on http://localhost:${PORT}`);
 });

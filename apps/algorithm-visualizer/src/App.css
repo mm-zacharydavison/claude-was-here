@@ -56,51 +56,13 @@ body {
   overflow: hidden;
 }
 
-.commit-chain-section {
+.commit-timeline-section {
   background: white;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 20px;
-}
-
-.commit-chain-section h2 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 16px;
-  color: #374151;
-}
-
-.visualization-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   flex: 1;
-  overflow: hidden;
-}
-
-.authorship-section,
-.working-state-section {
-  background: white;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.authorship-section {
-  border-right: 1px solid #e5e7eb;
-}
-
-.authorship-section h2,
-.working-state-section h2 {
-  font-size: 18px;
-  font-weight: 600;
-  padding: 20px 20px 0;
-  color: #374151;
-}
-
-.authorship-section > div,
-.working-state-section > div {
-  flex: 1;
-  overflow: hidden;
-  margin-top: 16px;
+  position: relative;
 }
 
 /* Commit node styles */

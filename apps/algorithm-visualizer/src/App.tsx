@@ -1,15 +1,13 @@
 import { useEffect } from 'react';
 import { DirectoryPicker } from './components/DirectoryPicker';
 import { FileSelector } from './components/FileSelector';
-import { CommitChain } from './components/CommitChain';
-import { AuthorshipVisualization } from './components/AuthorshipVisualization';
-import { WorkingStateDiff } from './components/WorkingStateDiff';
+import { CommitTimeline } from './components/CommitTimeline';
 import { useVisualizationStore } from './lib/store';
-import { fetchCommits, fetchAuthorship } from './lib/api';
+import { fetchCommits } from './lib/api';
 import './App.css';
 
 function App() {
-  const { currentRepository, selectedFile, setCommits, updateFileAuthorship } = useVisualizationStore();
+  const { currentRepository, selectedFile, setCommits } = useVisualizationStore();
   
   useEffect(() => {
     // Load commits when file is selected or repository changes
@@ -27,43 +25,6 @@ function App() {
     loadCommits();
   }, [currentRepository, selectedFile, setCommits]);
   
-  useEffect(() => {
-    // Load authorship data when file is selected
-    if (!selectedFile) return;
-    
-    const loadAuthorship = async () => {
-      try {
-        const authorshipData = await fetchAuthorship(selectedFile);
-        
-        // Process authorship data with rollup algorithm
-        const authorshipMap = new Map();
-        
-        // Simple rollup: take latest authorship for each line
-        authorshipData.forEach((data: any) => {
-          data.aiAuthoredRanges.forEach((range: any) => {
-            for (let line = range.start; line <= range.end; line++) {
-              authorshipMap.set(line, {
-                lineNumber: line,
-                isAiAuthored: true,
-                commitHash: data.commit,
-                timestamp: Date.now()
-              });
-            }
-          });
-        });
-        
-        updateFileAuthorship(selectedFile, {
-          filePath: selectedFile,
-          totalLines: 0, // Will be updated when content loads
-          authorshipMap
-        });
-      } catch (error) {
-        console.error('Failed to load authorship:', error);
-      }
-    };
-    
-    loadAuthorship();
-  }, [selectedFile, updateFileAuthorship]);
   
   return (
     <div className="app">
@@ -81,22 +42,9 @@ function App() {
           </aside>
           
           <main className="main-content">
-            <section className="commit-chain-section">
-              <h2>Commit Timeline</h2>
-              <CommitChain />
+            <section className="commit-timeline-section">
+              <CommitTimeline />
             </section>
-            
-            <div className="visualization-grid">
-              <section className="authorship-section">
-                <h2>File Authorship</h2>
-                <AuthorshipVisualization />
-              </section>
-              
-              <section className="working-state-section">
-                <h2>Working State</h2>
-                <WorkingStateDiff />
-              </section>
-            </div>
           </main>
         </div>
       ) : (

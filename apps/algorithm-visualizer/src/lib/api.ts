@@ -86,3 +86,26 @@ export async function fetchFiles(): Promise<string[]> {
   if (!response.ok) throw new Error('Failed to fetch files');
   return response.json();
 }
+
+export interface LineWithAuthorship {
+  lineNumber: number;
+  content: string;
+  isAiAuthored: boolean;
+}
+
+export interface FileWithAuthorship {
+  filepath: string;
+  commit: string;
+  totalLines: number;
+  lines: LineWithAuthorship[];
+}
+
+export async function fetchFileWithAuthorship(filePath: string, commit?: string): Promise<FileWithAuthorship> {
+  const url = commit 
+    ? `${API_BASE}/file-with-authorship/${encodeURIComponent(filePath)}?commit=${commit}`
+    : `${API_BASE}/file-with-authorship/${encodeURIComponent(filePath)}`;
+    
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch file with authorship');
+  return response.json();
+}
