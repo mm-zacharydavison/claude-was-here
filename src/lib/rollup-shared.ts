@@ -6,14 +6,12 @@ export {
   type CommitInfo,
   rollupAuthorship,
   getFileStats,
-  getOverallStats,
-  expandLineRanges,
-  mergeLineRanges
+  getOverallStats
 } from './authorship-rollup.ts';
 
 export type { LineRange, CommitAuthorshipData } from '../types.ts';
 
-// Re-export for visualization purposes
+// Utility functions for visualization purposes
 export function expandLineRanges(ranges: import('../types.ts').LineRange[]): number[] {
   const lines: number[] = [];
   
