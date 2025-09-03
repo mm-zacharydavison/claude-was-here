@@ -24,6 +24,18 @@ export async function installBinary(): Promise<void> {
   const localBinDir = join(homedir(), '.local', 'bin');
   const targetPath = join(localBinDir, 'claude-was-here');
   
+  // Check if we're running from the installed location to avoid "Text file busy" error
+  // When running from installed binary, Bun shows /$bunfs/root/claude-was-here
+  const currentExecutable = process.argv[1] || process.execPath;
+  const isBunVirtualPath = currentExecutable.includes('$bunfs') && currentExecutable.endsWith('/claude-was-here');
+  
+  if (isBunVirtualPath) {
+    // We're running from the installed binary (Bun's virtual filesystem)
+    console.log('✅ Already running from installed location:', targetPath);
+    console.log('   To update, run: bun run build:binary && cp claude-was-here ~/.local/bin/');
+    return;
+  }
+  
   // Check if current binary exists
   try {
     await access(currentBinary);

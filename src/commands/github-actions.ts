@@ -41,8 +41,8 @@ interface ClaudeLineMapping {
  */
 export async function githubSynchronizePR(baseCommit: string, headCommit: string): Promise<void> {
   try {
-    // Get all commits in the range (use --first-parent to avoid including merged commits from other branches)
-    const commitsResult = await execGitCommand(['log', '--first-parent', '--format=%H', `${baseCommit}..${headCommit}`]);
+    // Get all commits in the range
+    const commitsResult = await execGitCommand(['log', '--format=%H', `${baseCommit}..${headCommit}`]);
     if (!commitsResult || commitsResult.code !== 0) {
       throw new Error(`Failed to get commits: ${commitsResult?.stderr || 'Unknown error'}`);
     }
@@ -58,7 +58,13 @@ export async function githubSynchronizePR(baseCommit: string, headCommit: string
         const noteLines = notesResult.stdout.split('\n');
         
         for (const line of noteLines) {
+          // Skip header lines
           if (line === 'claude-was-here' || line.startsWith('version:')) {
+            continue;
+          }
+          
+          // Skip empty lines
+          if (!line.trim()) {
             continue;
           }
           
@@ -77,7 +83,9 @@ export async function githubSynchronizePR(baseCommit: string, headCommit: string
           if (match) {
             const filepath = match[1].trim();
             const ranges = match[2].trim();
-            contributions.push({ commitHash, filepath, ranges });
+            if (filepath && ranges) { // Only add if both filepath and ranges are non-empty
+              contributions.push({ commitHash, filepath, ranges });
+            }
           }
         }
       }
@@ -150,15 +158,31 @@ async function consolidateClaudeContributions(contributions: ClaudeContribution[
   const parseRanges = (ranges: string): number[] => {
     const lines: number[] = [];
     
+    // Handle empty or whitespace-only ranges
+    if (!ranges || !ranges.trim()) {
+      return lines;
+    }
+    
     for (const rangeStr of ranges.split(',')) {
       const trimmed = rangeStr.trim();
+      if (!trimmed) continue; // Skip empty range parts
+      
       if (trimmed.includes('-')) {
-        const [start, end] = trimmed.split('-').map(n => parseInt(n));
-        for (let i = start; i <= end; i++) {
-          lines.push(i);
+        const [startStr, endStr] = trimmed.split('-');
+        const start = parseInt(startStr);
+        const end = parseInt(endStr);
+        
+        // Validate that both start and end are valid numbers
+        if (!isNaN(start) && !isNaN(end) && start <= end) {
+          for (let i = start; i <= end; i++) {
+            lines.push(i);
+          }
         }
       } else {
-        lines.push(parseInt(trimmed));
+        const lineNum = parseInt(trimmed);
+        if (!isNaN(lineNum)) {
+          lines.push(lineNum);
+        }
       }
     }
     

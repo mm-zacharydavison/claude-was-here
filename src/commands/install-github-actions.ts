@@ -38,12 +38,25 @@ jobs:
       - name: Get base and head commits
         id: commits
         run: |
-          BASE_COMMIT=\$(git merge-base HEAD origin/\${{ github.base_ref }})
-          HEAD_COMMIT=\$(git rev-parse HEAD)
+          # For PRs, we need the actual branch commits, not the temporary merge commit
+          # GitHub creates a temporary merge commit for testing, but we want the actual branch history
+          
+          # Fetch the PR branch to ensure we have all commits
+          git fetch origin pull/\${{ github.event.number }}/head:pr-branch
+          
+          # Get the base commit (where the PR branch diverged from base)
+          BASE_COMMIT=\$(git merge-base origin/\${{ github.base_ref }} pr-branch)
+          
+          # Get the head commit (tip of the PR branch, not the merge commit)
+          HEAD_COMMIT=\$(git rev-parse pr-branch)
+          
           echo "base_commit=\$BASE_COMMIT" >> \$GITHUB_OUTPUT
           echo "head_commit=\$HEAD_COMMIT" >> \$GITHUB_OUTPUT
           echo "Base commit: \$BASE_COMMIT"
-          echo "Head commit: \$HEAD_COMMIT"
+          echo "Head commit: \$HEAD_COMMIT (PR branch tip)"
+          
+          # Verify commits are accessible
+          git log --oneline "\${BASE_COMMIT}...\${HEAD_COMMIT}" | head -5 || echo "Could not list commits"
           
       - name: Collect and consolidate Claude notes
         run: |
@@ -271,7 +284,7 @@ async function main() {
   const headCommit = args[3];
   
   try {
-    const commitsResult = await execGitCommand(['log', '--first-parent', '--format=%H', \`\${baseCommit}..\${headCommit}\`]);
+    const commitsResult = await execGitCommand(['log', '--format=%H', \`\${baseCommit}..\${headCommit}\`]);
     if (commitsResult.code !== 0) {
       throw new Error(\`Failed to get commits: \${commitsResult.stderr}\`);
     }
